@@ -32,7 +32,7 @@ describe('aggregate', () => {
 		expect(LAUNCH_STATES.size).toBe(49);
 	});
 
-	it('summarizes a route: early arrivals negative, cancelled and diverted flights not flown', async () => {
+	it('summarizes a route: early arrivals negative, cancelled and diverted flights not flown but disrupted', async () => {
 		const { rows } = await run();
 
 		expect(find(rows, 'route', 'AAA-BBB')).toEqual({
@@ -40,8 +40,8 @@ describe('aggregate', () => {
 			month,
 			flights: 5,
 			averageDelayMinutes: 6.7, // (10 + 20 - 10) / 3 flown
-			lateShare: 0.333, // one of three flown arrived over 15 minutes late
-			cancelShare: 0.2, // one of five cancelled; the diverted flight isn't counted
+			delayShare: 0.333, // one of three flown arrived over 15 minutes late
+			disruptShare: 0.4, // one cancelled and one diverted, out of five
 			scheduledMinutes: 60, // the middle of 60, 60, 60, 60, 70
 		});
 	});
@@ -54,8 +54,8 @@ describe('aggregate', () => {
 			month,
 			flights: 6,
 			averageDelayMinutes: 6.3, // (10 + 20 - 10 + 5) / 4 flown
-			lateShare: 0.25,
-			cancelShare: 0.167,
+			delayShare: 0.25,
+			disruptShare: 0.333, // two of six
 		});
 		expect(find(rows, 'airport', 'ANC')).toBeUndefined();
 		expect(find(rows, 'airport', 'SJU')).toBeUndefined();
@@ -126,8 +126,8 @@ function plausible(): Aggregate {
 			month,
 			flights: 500_000,
 			averageDelayMinutes: 10,
-			lateShare: 0.2,
-			cancelShare: 0.02,
+			delayShare: 0.2,
+			disruptShare: 0.02,
 		},
 	];
 
@@ -137,8 +137,8 @@ function plausible(): Aggregate {
 			month,
 			flights: 10,
 			averageDelayMinutes: 10,
-			lateShare: 0.2,
-			cancelShare: 0.02,
+			delayShare: 0.2,
+			disruptShare: 0.02,
 		});
 	}
 
@@ -148,8 +148,8 @@ function plausible(): Aggregate {
 			month,
 			flights: 10,
 			averageDelayMinutes: 10,
-			lateShare: 0.2,
-			cancelShare: 0.02,
+			delayShare: 0.2,
+			disruptShare: 0.02,
 			scheduledMinutes: 90,
 		});
 	}
@@ -194,8 +194,8 @@ describe('runChecks', () => {
 			month,
 			flights: 1,
 			averageDelayMinutes: 0,
-			lateShare: 1.2,
-			cancelShare: 0,
+			delayShare: 1.2,
+			disruptShare: 0,
 		});
 
 		expect(failing(bad)).toContain('Every share is between 0 and 1');
@@ -208,8 +208,8 @@ describe('runChecks', () => {
 			month,
 			flights: 1,
 			averageDelayMinutes: 0,
-			lateShare: 0,
-			cancelShare: 0,
+			delayShare: 0,
+			disruptShare: 0,
 		});
 
 		expect(failing(bad)).toEqual(['Every route has a scheduled time']);
@@ -225,8 +225,8 @@ describe('summarize', () => {
 				month: '2026-07',
 				flights: 480_000,
 				averageDelayMinutes: 12.5,
-				lateShare: 0.25,
-				cancelShare: 0.03,
+				delayShare: 0.25,
+				disruptShare: 0.03,
 			},
 		];
 		const text = summarize(month, current.rows, runChecks(current), {

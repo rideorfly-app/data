@@ -53,7 +53,10 @@ export function runChecks(result: Aggregate): CheckResult[] {
 			name: 'Every share is between 0 and 1',
 			passed: rows.every(
 				(row) =>
-					row.lateShare >= 0 && row.lateShare <= 1 && row.cancelShare >= 0 && row.cancelShare <= 1,
+					row.delayShare >= 0 &&
+					row.delayShare <= 1 &&
+					row.disruptShare >= 0 &&
+					row.disruptShare <= 1,
 			),
 		},
 		{

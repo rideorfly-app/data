@@ -31,19 +31,19 @@ export interface Aggregate {
 /** Running totals for one route, airport, or the nation. */
 interface Tally {
 	flights: number;
-	cancelled: number;
+	disrupted: number;
 	flown: number;
 	delayTotal: number;
-	late: number;
+	delayed: number;
 	scheduled: number[];
 }
 
 const tally = (): Tally => ({
 	flights: 0,
-	cancelled: 0,
+	disrupted: 0,
 	flown: 0,
 	delayTotal: 0,
-	late: 0,
+	delayed: 0,
 	scheduled: [],
 });
 
@@ -51,10 +51,11 @@ const tally = (): Tally => ({
  * Boils one month of DOT's on-time records down to rows: one per route (each
  * direction), one per airport (flights in and out), and one for the nation.
  *
- * - `flights` counts every scheduled flight, cancelled ones too.
- * - The average delay and late share cover flights that flew (not cancelled or
- *   diverted), with early arrivals counted as negative minutes. Late means
- *   more than 15 minutes.
+ * - `flights` counts every scheduled flight, cancelled and diverted ones too.
+ * - `disruptShare` is the share of all flights cancelled or diverted.
+ * - The average delay and `delayShare` cover flights that flew (not cancelled
+ *   or diverted), with early arrivals counted as negative minutes. Delayed
+ *   means more than 15 minutes late.
  * - A group with no flown flights gets no row, since it has no delay to report.
  */
 export async function aggregate(
@@ -99,8 +100,8 @@ export async function aggregate(
 		]) {
 			group.flights++;
 
-			if (cancelled) {
-				group.cancelled++;
+			if (cancelled || diverted) {
+				group.disrupted++;
 			}
 
 			if (flew) {
@@ -108,7 +109,7 @@ export async function aggregate(
 				group.delayTotal += delay;
 
 				if (delay > 15) {
-					group.late++;
+					group.delayed++;
 				}
 			}
 		}
@@ -155,8 +156,8 @@ function row(month: Month, totals: Tally): FlightMonth | null {
 		month,
 		flights: totals.flights,
 		averageDelayMinutes: round(totals.delayTotal / totals.flown, 1),
-		lateShare: round(totals.late / totals.flown, 3),
-		cancelShare: round(totals.cancelled / totals.flights, 3),
+		delayShare: round(totals.delayed / totals.flown, 3),
+		disruptShare: round(totals.disrupted / totals.flights, 3),
 	};
 }
 

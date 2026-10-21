@@ -21,7 +21,7 @@ The owner is a web developer who builds custom WordPress themes and plugins. Inf
 - **Licenses:** scripts are Apache 2.0 (`LICENSE`, `NOTICE`); data files, including the hand-kept tables, are CC BY 4.0 (`LICENSE-DATA`).
 - **Scripts get the same checks as the engine:** TypeScript, type-checked, and tested with small sample files, since their output feeds real results.
 - **Flight history covers the Lower 48 and DC only:** a flight counts when both ends are there, matching the app's launch area. Adding Alaska and Hawaii later means rebuilding every month.
-- **`cancelShare` counts cancelled flights only.** Diverted flights aren't counted as cancelled, and aren't in the delay figures either, since they have no arrival delay.
+- **Two reliability figures, named like the engine's:** `delayShare` is the share of flights that flew and arrived more than 15 minutes late; `disruptShare` is the share of all flights that were cancelled or diverted. Diverted flights are in `disruptShare` only, not in the delay figures, since DOT gives them no arrival delay.
 - **Files are reproducible:** one row per line, keys in a fixed order, rows sorted, so the same source gives the same bytes.
 
 ## Files

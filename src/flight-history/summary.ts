@@ -31,7 +31,7 @@ export function summarize(
 		'',
 		'### Nationwide',
 		'',
-		'| | Flights | Average delay | Late | Cancelled |',
+		'| | Flights | Average delay | Delayed 15+ min | Cancelled or diverted |',
 		'| --- | ---: | ---: | ---: | ---: |',
 	];
 
@@ -44,7 +44,7 @@ export function summarize(
 
 		lines.push(
 			found
-				? `| ${label} | ${found.flights.toLocaleString('en-US')} | ${found.averageDelayMinutes} min | ${percent(found.lateShare)} | ${percent(found.cancelShare)} |`
+				? `| ${label} | ${found.flights.toLocaleString('en-US')} | ${found.averageDelayMinutes} min | ${percent(found.delayShare)} | ${percent(found.disruptShare)} |`
 				: `| ${label} | not in the repo | | | |`,
 		);
 	}
