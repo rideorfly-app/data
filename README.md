@@ -10,7 +10,7 @@ Public numbers from public sources, checked every day and published only after a
 
 | Dataset | Source | Updated |
 | --- | --- | --- |
-| Flight history: delays, cancellations, and scheduled flight times by route, airport, and nationwide (flights within the Lower 48 and DC) | DOT on-time records | Monthly, about two months behind |
+| Flight history: delays, cancellations and diversions, and scheduled flight times by route, airport, and nationwide (flights within the Lower 48 and DC) | DOT on-time records | Monthly, about two months behind |
 | Accuracy report: how close the engine's flight-time estimates came to the flights that actually flew | DOT records and the published engine | Monthly |
 | Gas prices by region | EIA | Weekly |
 | Hotel and meal rates | GSA per diem | Yearly |

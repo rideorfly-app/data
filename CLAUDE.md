@@ -61,4 +61,13 @@ Downloads are cached in `.cache/` (ignored by Git). Node runs the TypeScript dir
 ## Getting started
 
 - Initial work happens on the `init` branch, with a pull request into `master`. `init` never commits datasets: `datasets/` is in the local exclude list (`.git/info/exclude`), so files made while testing stay untracked.
-- The backfill (January 2022 to the newest month) runs locally. Before it, `datasets/` comes off the exclude list, and the owner turns `master`'s pull-request rule off just long enough to push it straight to `master`, then back on.
+- The backfill (January 2022 to the newest month) runs locally. Before it, `datasets/` comes off the exclude list, and the owner turns `master`'s pull-request rule off just long enough to push it straight to `master`, then back on. Signed commits, no force pushes, and no deletion stay on throughout.
+- After the backfill, tighten the sanity ranges in `src/flight-history/checks.ts`. They are deliberately loose (set from three months). Narrow them to the spread of all the months, with a margin, so a broken file still fails.
+
+## How the flight-history job was checked
+
+Run on August 2026, January 2022, and November 2024 (about 30 MB each, cached in `.cache/`):
+
+- **Every row recomputed independently** with separate code. Zero mismatches in all three months, and the delayed-flight count equals BTS's own `ArrDel15` flag total.
+- **DOT's *Air Travel Consumer Report* for November 2024** (the January 2025 edition) matches exactly: 575,404 records, 488,033 on time, 2,629 cancelled, and 842 diverted for the whole file (its Table 7A), and the arrivals and on-time percentage at Boston, Dayton, Bozeman, Daytona Beach, Abilene, and Aberdeen (Table 5). DOT's own site blocks automated downloads; the BTS archive copy (`rosap.ntl.bts.gov`) can be fetched. The Lower 48 and DC file keeps 95.7% of those records.
+- To repeat a check, recompute from the cached zip with a few lines of Python (`csv` and `zipfile`) and compare. The job's rules are in `aggregate.ts`.
