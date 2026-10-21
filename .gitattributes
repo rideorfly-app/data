@@ -1,0 +1,3 @@
+# Generated data files fold away in pull requests. Hand-kept tables are
+# excluded below so the owner's edits stay visible.
+datasets/** linguist-generated=true

@@ -1,8 +1,8 @@
 # Ride or Fly: data
 
-The public data pipeline for Ride or Fly. A daily workflow checks public sources (DOT, EIA, GSA, NHTSA, USGS, Census, FAA), turns new data into files, and opens a pull request for each update. The owner merges updates and cuts releases by hand, and the private `app` repo loads each release into D1. The full design is the "Batch data jobs" section of `../MVP Plan.md`, which is the source of truth. Check it before building or changing a job, and point out anything that conflicts with it.
+The public data pipeline for Ride or Fly. Each dataset has its own job, which checks a public source (DOT, EIA, GSA, NHTSA, USGS, Census, FAA) for new data and makes its file. A daily workflow runs every job and opens a pull request for each update. The owner merges updates and cuts releases by hand, and the private `app` repo loads each release into D1. The full design is the "Batch data jobs" section of `../MVP Plan.md`, which is the source of truth. Check it before building or changing a job, and point out anything that conflicts with it.
 
-This repo installs `@rideorfly/engine` from npm at a pinned version, for its row formats and, for the accuracy report, its math. It depends on the engine, never the reverse.
+This repo installs `@rideorfly/engine` at a pinned version, for its row formats and, for the accuracy report, its math. Until the engine is on npm, it installs from a pinned commit on GitHub, which works because the engine builds itself on install. Move the pin up with each engine change `data` needs. It depends on the engine, never the reverse.
 
 ## About the owner
 
@@ -14,12 +14,17 @@ The owner is a web developer who builds custom WordPress themes and plugins. Inf
 
 ## Rules
 
-- **This repo is public.** Nothing private goes in: no production credentials, no app code, and no user data. The only secret is a PAT limited to starting workflows in the `.github` repo.
+- **This repo is public.** Nothing private goes in: no production credentials, no app code, and no user data. The only secrets are a PAT limited to starting workflows in the `.github` repo and, if a source turns out to need one, a read-only key for public data.
 - **Never commit Google's route results**, including drive times or distances copied from Google Maps. Google's terms forbid storing them.
 - **Each job writes only to its own repo.** Everything that produces a file runs here; other repos read the releases.
-- **Released files are never edited in place.** Corrections go through a new pull request and the next release.
+- **Data changes only through pull requests,** except the one-time backfill (see Getting started). A correction, or a new review of a hand-kept table, edits the file in a pull request and goes out in the next release. Earlier releases keep the old version, since each release is a locked label on a commit.
 - **Licenses:** scripts are Apache 2.0 (`LICENSE`, `NOTICE`); data files, including the hand-kept tables, are CC BY 4.0 (`LICENSE-DATA`).
 - **Scripts get the same checks as the engine:** TypeScript, type-checked, and tested with small sample files, since their output feeds real results.
+- **Flight history covers the Lower 48 and DC only:** a flight counts when both ends are there, matching the app's launch area. Adding Alaska and Hawaii later means rebuilding every month.
+- **Two reliability figures, named like the engine's:** `delayShare` is the share of flights that flew and arrived 15 minutes or more late; `disruptShare` is the share of all flights that were cancelled or diverted. Diverted flights are in `disruptShare` only, not in the delay figures, since DOT gives them no arrival delay.
+- **"Delayed" is DOT's rule:** 15 minutes or more late, the same as BTS's `ArrDel15` flag. A test keeps a flight at exactly 15 minutes in the sample.
+- **Airport rows cover every flight in or out of the airport,** each measured by its arrival delay at its own destination, so they blend the airport's arrivals with the delays of flights leaving it. DOT's own per-airport tables count arrivals only, so compare with an arrivals-only recomputation. The engine uses airport rows only to borrow a seasonal pattern for thin routes.
+- **Files are reproducible:** one row per line, keys in a fixed order, rows sorted, so the same source gives the same bytes.
 
 ## Files
 
@@ -28,5 +33,41 @@ The owner is a web developer who builds custom WordPress themes and plugins. Inf
 | `README.md` | What the repo holds and how it works, for the public |
 | `LICENSE`, `NOTICE` | Apache 2.0, for the scripts |
 | `LICENSE-DATA` | CC BY 4.0, for the data files |
+| `src/cli.ts` | Runs a job locally; jobs are the folders in `src/` other than `lib/` |
+| `src/lib/` | Shared helpers: `job.ts` (a job's shape), `download.ts`, `csv.ts` (reads a zipped CSV), `months.ts`, `write.ts` (the file format) |
+| `src/flight-history/` | The flight-history job: `aggregate.ts` (DOT records to rows), `checks.ts` (sanity ranges), `summary.ts` (pull request text), `index.ts` (the job) |
+| `test/` | Vitest tests; `test/flight-history/` has a made-up zipped CSV of nine flights |
+| `datasets/` | Everything published (CC BY 4.0), one row per line, including the hand-kept tables, one file each, edited in place. Empty on `init` |
+| `.github/workflows/tests.yml` | Lint, types, and tests on pushes and pull requests |
 
-The pipeline, its scripts, and the workflows aren't built yet.
+Not built yet ("Jobs, workflows, and layout" in the plan): the other datasets' jobs (`src/<job>/`, with tests in `test/<job>/`), the accuracy report, the manifest, and the `daily.yml` (runs every job), `job.yml` (one job; also run by hand), and `release.yml` (the Release data button) workflows.
+
+## Commands
+
+| Task | Command |
+| --- | --- |
+| Install (also builds the pinned engine) | `npm install` |
+| Tests | `npm test` |
+| Tests with the coverage report | `npm run coverage` |
+| Format and lint (fix with `npm run format`) | `npm run check` |
+| Types | `npm run typecheck` |
+| Everything CI runs | `npm run verify` |
+| Is there new data? | `npm run job -- flight-history --check` |
+| Make one month | `npm run job -- flight-history --month 2026-08` |
+| Make a range | `npm run job -- flight-history --from 2022-01 --to 2026-08` |
+
+Downloads are cached in `.cache/` (ignored by Git). Node runs the TypeScript directly, so there's no build step; imports use `.ts` extensions.
+
+## Getting started
+
+- Initial work happens on the `init` branch, with a pull request into `master`. `init` never commits datasets: `datasets/` is in the local exclude list (`.git/info/exclude`), so files made while testing stay untracked.
+- The backfill (January 2022 to the newest month) runs locally. Before it, `datasets/` comes off the exclude list, and the owner turns `master`'s pull-request rule off just long enough to push it straight to `master`, then back on. Signed commits, no force pushes, and no deletion stay on throughout.
+- After the backfill, tighten the sanity ranges in `src/flight-history/checks.ts`. They are deliberately loose (set from three months). Narrow them to the spread of all the months, with a margin, so a broken file still fails.
+
+## How the flight-history job was checked
+
+Run on August 2026, January 2022, and November 2024 (about 30 MB each, cached in `.cache/`):
+
+- **Every row recomputed independently** with separate code. Zero mismatches in all three months, and the delayed-flight count equals BTS's own `ArrDel15` flag total.
+- **DOT's *Air Travel Consumer Report* for November 2024** (the January 2025 edition) matches exactly: 575,404 records, 488,033 on time, 2,629 cancelled, and 842 diverted for the whole file (its Table 7A), and the arrivals and on-time percentage at Boston, Dayton, Bozeman, Daytona Beach, Abilene, and Aberdeen (Table 5). DOT's own site blocks automated downloads; the BTS archive copy (`rosap.ntl.bts.gov`) can be fetched. The Lower 48 and DC file keeps 95.7% of those records.
+- To repeat a check, recompute from the cached zip with a few lines of Python (`csv` and `zipfile`) and compare. The job's rules are in `aggregate.ts`.
