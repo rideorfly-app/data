@@ -131,11 +131,12 @@ function plausible(): Aggregate {
 		},
 	];
 
-	for (let i = 0; i < 300; i++) {
+	// Each flight is at two airports, so the airports add up to twice the nation.
+	for (let i = 0; i < 250; i++) {
 		rows.push({
 			airport: `A${i}`,
 			month,
-			flights: 10,
+			flights: 4_000,
 			averageDelayMinutes: 10,
 			delayShare: 0.2,
 			disruptShare: 0.02,
@@ -146,7 +147,7 @@ function plausible(): Aggregate {
 		rows.push({
 			route: `R${i}`,
 			month,
-			flights: 10,
+			flights: 100,
 			averageDelayMinutes: 10,
 			delayShare: 0.2,
 			disruptShare: 0.02,
@@ -181,36 +182,57 @@ describe('runChecks', () => {
 		expect(EXPECTED.routeRows[0]).toBeGreaterThan(50);
 	});
 
-	it('fails when the nationwide row disagrees with the flights kept', () => {
-		expect(failing({ ...plausible(), kept: 400_000 })).toEqual([
-			'The nationwide row counts every flight kept',
+	it('fails when the route rows fall short of the nationwide row', () => {
+		const short = plausible();
+		short.rows = short.rows.slice(0, -100); // 100 routes lost, 2% of the flights
+
+		expect(failing(short)).toEqual(['Route rows add up to the nationwide row']);
+	});
+
+	it('forgives a few routes left out for having no flown flight', () => {
+		const nearly = plausible();
+		nearly.rows = nearly.rows.slice(0, -10); // 10 routes, 0.2% of the flights
+
+		expect(failing(nearly)).toEqual([]);
+	});
+
+	it('fails when the nationwide row is bigger than its parts', () => {
+		const bad = plausible();
+		bad.rows[0] = { ...bad.rows[0], flights: 520_000 } as FlightRow;
+
+		expect(failing(bad)).toEqual([
+			'Route rows add up to the nationwide row',
+			'Airport rows add up to twice the nationwide row (each flight is at two airports)',
+		]);
+	});
+
+	it('fails when the parts add up to more than the nationwide row', () => {
+		const bad = plausible();
+		bad.rows[0] = { ...bad.rows[0], flights: 480_000 } as FlightRow;
+
+		expect(failing(bad)).toEqual([
+			'Route rows add up to the nationwide row',
+			'Airport rows add up to twice the nationwide row (each flight is at two airports)',
 		]);
 	});
 
 	it('fails a share outside 0 to 1', () => {
 		const bad = plausible();
-		bad.rows.push({
-			airport: 'ZZZ',
-			month,
-			flights: 1,
-			averageDelayMinutes: 0,
-			delayShare: 1.2,
-			disruptShare: 0,
-		});
+		bad.rows[1] = { ...bad.rows[1], delayShare: 1.2 } as FlightRow;
 
-		expect(failing(bad)).toContain('Every share is between 0 and 1');
+		expect(failing(bad)).toEqual(['Every share is between 0 and 1']);
 	});
 
 	it('fails a route with no scheduled time', () => {
 		const bad = plausible();
-		bad.rows.push({
-			route: 'ZZZ-YYY',
+		bad.rows[bad.rows.length - 1] = {
+			route: 'R4999',
 			month,
-			flights: 1,
-			averageDelayMinutes: 0,
-			delayShare: 0,
-			disruptShare: 0,
-		});
+			flights: 100,
+			averageDelayMinutes: 10,
+			delayShare: 0.2,
+			disruptShare: 0.02,
+		};
 
 		expect(failing(bad)).toEqual(['Every route has a scheduled time']);
 	});
@@ -235,7 +257,7 @@ describe('summarize', () => {
 		});
 
 		expect(text).toContain('## Flight history for 2026-08');
-		expect(text).toContain('5,000 routes, 300 airports, and 500,000 flights');
+		expect(text).toContain('5,000 routes, 250 airports, and 500,000 flights');
 		expect(text).toContain('| Month before | 480,000 | 12.5 min | 25.0% | 3.0% |');
 		expect(text).toContain('| A year earlier | not in the repo |');
 		expect(text).toContain('✅ The file holds only the month asked for');

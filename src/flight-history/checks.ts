@@ -17,6 +17,15 @@ export interface CheckResult {
 	passed: boolean;
 }
 
+/** How far short of its total a set of rows may fall, since a group with no flown flight gets no row. */
+const MISSING_SHARE = 0.005;
+
+const total = (rows: readonly FlightRow[]) => rows.reduce((sum, row) => sum + row.flights, 0);
+
+/** True when `sum` reaches `expected` without going over, give or take the rows left out. */
+const addsUp = (sum: number, expected: number) =>
+	sum <= expected && sum >= expected * (1 - MISSING_SHARE);
+
 /** Runs every check on a month's rows; the job writes nothing unless all pass. */
 export function runChecks(result: Aggregate): CheckResult[] {
 	const { rows } = result;
@@ -34,8 +43,12 @@ export function runChecks(result: Aggregate): CheckResult[] {
 			passed: !!nation && within(nation.flights, EXPECTED.nationFlights),
 		},
 		{
-			name: 'The nationwide row counts every flight kept',
-			passed: !!nation && nation.flights === result.kept,
+			name: 'Route rows add up to the nationwide row',
+			passed: !!nation && addsUp(total(routes), nation.flights),
+		},
+		{
+			name: 'Airport rows add up to twice the nationwide row (each flight is at two airports)',
+			passed: !!nation && addsUp(total(airports), 2 * nation.flights),
 		},
 		{
 			name: `The number of routes is plausible (${EXPECTED.routeRows[0].toLocaleString('en-US')} to ${EXPECTED.routeRows[1].toLocaleString('en-US')})`,
