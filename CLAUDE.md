@@ -21,7 +21,9 @@ The owner is a web developer who builds custom WordPress themes and plugins. Inf
 - **Licenses:** scripts are Apache 2.0 (`LICENSE`, `NOTICE`); data files, including the hand-kept tables, are CC BY 4.0 (`LICENSE-DATA`).
 - **Scripts get the same checks as the engine:** TypeScript, type-checked, and tested with small sample files, since their output feeds real results.
 - **Flight history covers the Lower 48 and DC only:** a flight counts when both ends are there, matching the app's launch area. Adding Alaska and Hawaii later means rebuilding every month.
-- **Two reliability figures, named like the engine's:** `delayShare` is the share of flights that flew and arrived more than 15 minutes late; `disruptShare` is the share of all flights that were cancelled or diverted. Diverted flights are in `disruptShare` only, not in the delay figures, since DOT gives them no arrival delay.
+- **Two reliability figures, named like the engine's:** `delayShare` is the share of flights that flew and arrived 15 minutes or more late; `disruptShare` is the share of all flights that were cancelled or diverted. Diverted flights are in `disruptShare` only, not in the delay figures, since DOT gives them no arrival delay.
+- **"Delayed" is DOT's rule:** 15 minutes or more late, the same as BTS's `ArrDel15` flag. A test keeps a flight at exactly 15 minutes in the sample.
+- **Airport rows cover every flight in or out of the airport,** each measured by its arrival delay at its own destination, so they blend the airport's arrivals with the delays of flights leaving it. DOT's own per-airport tables count arrivals only, so compare with an arrivals-only recomputation. The engine uses airport rows only to borrow a seasonal pattern for thin routes.
 - **Files are reproducible:** one row per line, keys in a fixed order, rows sorted, so the same source gives the same bytes.
 
 ## Files
@@ -34,7 +36,7 @@ The owner is a web developer who builds custom WordPress themes and plugins. Inf
 | `src/cli.ts` | Runs a job locally; jobs are the folders in `src/` other than `lib/` |
 | `src/lib/` | Shared helpers: `job.ts` (a job's shape), `download.ts`, `csv.ts` (reads a zipped CSV), `months.ts`, `write.ts` (the file format) |
 | `src/flight-history/` | The flight-history job: `aggregate.ts` (DOT records to rows), `checks.ts` (sanity ranges), `summary.ts` (pull request text), `index.ts` (the job) |
-| `test/` | Vitest tests; `test/flight-history/` has a made-up zipped CSV of eight flights |
+| `test/` | Vitest tests; `test/flight-history/` has a made-up zipped CSV of nine flights |
 | `datasets/` | Everything published (CC BY 4.0), one row per line, including the hand-kept tables, one file each, edited in place. Empty on `init` |
 | `.github/workflows/tests.yml` | Lint, types, and tests on pushes and pull requests |
 

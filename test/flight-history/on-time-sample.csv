@@ -7,3 +7,4 @@ FlightDate,OriginCityName,Origin,OriginState,Dest,DestState,CRSElapsedTime,ArrDe
 2026-08-06,"Bville, CA",BBB,CA,AAA,TX,65.00,5.00,0.00,0.00
 2026-08-07,"Aville, TX",AAA,TX,ANC,AK,300.00,0.00,0.00,0.00
 2026-08-08,"San Juan, PR",SJU,PR,BBB,CA,400.00,30.00,0.00,0.00
+2026-08-09,"Aville, TX",AAA,TX,BBB,CA,60.00,15.00,0.00,0.00

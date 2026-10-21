@@ -12,9 +12,10 @@ import { summarize } from '../../src/flight-history/summary.ts';
 import { readZippedCsv } from '../../src/lib/csv.ts';
 import { formatRows } from '../../src/lib/write.ts';
 
-// Eight made-up flights (see on-time-sample.csv): five AAA to BBB (one early,
-// one late, one cancelled, one diverted), one BBB to AAA, one to Alaska and
-// one from Puerto Rico, which the launch area leaves out.
+// Nine made-up flights (see on-time-sample.csv): six AAA to BBB (one early,
+// one 20 minutes late, one exactly 15 minutes late, one cancelled, one
+// diverted), one BBB to AAA, one to Alaska and one from Puerto Rico, which
+// the launch area leaves out.
 const sample = join(import.meta.dirname, 'on-time-sample.zip');
 
 const month = '2026-08';
@@ -26,7 +27,7 @@ describe('aggregate', () => {
 	it('counts only flights between the Lower 48 and DC', async () => {
 		const result = await run();
 
-		expect(result.kept).toBe(6);
+		expect(result.kept).toBe(7);
 		expect(result.outside).toBe(2);
 		expect(result.otherMonth).toBe(0);
 		expect(LAUNCH_STATES.size).toBe(49);
@@ -38,11 +39,11 @@ describe('aggregate', () => {
 		expect(find(rows, 'route', 'AAA-BBB')).toEqual({
 			route: 'AAA-BBB',
 			month,
-			flights: 5,
-			averageDelayMinutes: 6.7, // (10 + 20 - 10) / 3 flown
-			delayShare: 0.333, // one of three flown arrived over 15 minutes late
-			disruptShare: 0.4, // one cancelled and one diverted, out of five
-			scheduledMinutes: 60, // the middle of 60, 60, 60, 60, 70
+			flights: 6,
+			averageDelayMinutes: 8.8, // (10 + 20 - 10 + 15) / 4 flown
+			delayShare: 0.5, // 20 and exactly 15 minutes late both count, as DOT counts them
+			disruptShare: 0.333, // one cancelled and one diverted, out of six
+			scheduledMinutes: 60, // the middle of 60, 60, 60, 60, 60, 70
 		});
 	});
 
@@ -52,10 +53,10 @@ describe('aggregate', () => {
 		expect(find(rows, 'airport', 'AAA')).toEqual({
 			airport: 'AAA',
 			month,
-			flights: 6,
-			averageDelayMinutes: 6.3, // (10 + 20 - 10 + 5) / 4 flown
-			delayShare: 0.25,
-			disruptShare: 0.333, // two of six
+			flights: 7,
+			averageDelayMinutes: 8, // (10 + 20 - 10 + 15 + 5) / 5 flown
+			delayShare: 0.4,
+			disruptShare: 0.286, // two of seven
 		});
 		expect(find(rows, 'airport', 'ANC')).toBeUndefined();
 		expect(find(rows, 'airport', 'SJU')).toBeUndefined();
@@ -64,7 +65,7 @@ describe('aggregate', () => {
 	it('adds a nationwide row, and puts it first, then airports, then routes', async () => {
 		const { rows } = await run();
 
-		expect(rows[0]).toMatchObject({ nation: 'US', flights: 6 });
+		expect(rows[0]).toMatchObject({ nation: 'US', flights: 7 });
 		expect(rows.map((row) => Object.keys(row)[0])).toEqual([
 			'nation',
 			'airport',

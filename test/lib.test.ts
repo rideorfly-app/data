@@ -7,7 +7,7 @@ import { download, exists } from '../src/lib/download.ts';
 import { addMonths, monthsBetween, parseMonth } from '../src/lib/months.ts';
 import { formatRows } from '../src/lib/write.ts';
 
-// A made-up month of eight flights, with a comma inside a quoted field. See
+// A made-up month of nine flights, with a comma inside a quoted field. See
 // on-time-sample.csv for the same rows in plain text.
 const sample = join(import.meta.dirname, 'flight-history', 'on-time-sample.zip');
 
@@ -39,7 +39,7 @@ describe('readZippedCsv', () => {
 	it('reads each row as an object keyed by the header', async () => {
 		const rows = await readAll(sample);
 
-		expect(rows).toHaveLength(8);
+		expect(rows).toHaveLength(9);
 		expect(rows[0]).toMatchObject({
 			OriginCityName: 'Aville, TX',
 			Origin: 'AAA',

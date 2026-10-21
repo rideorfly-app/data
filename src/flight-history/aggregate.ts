@@ -55,7 +55,7 @@ const tally = (): Tally => ({
  * - `disruptShare` is the share of all flights cancelled or diverted.
  * - The average delay and `delayShare` cover flights that flew (not cancelled
  *   or diverted), with early arrivals counted as negative minutes. Delayed
- *   means more than 15 minutes late.
+ *   means 15 minutes or more late, DOT's rule (BTS flags it as ArrDel15).
  * - A group with no flown flights gets no row, since it has no delay to report.
  */
 export async function aggregate(
@@ -108,7 +108,7 @@ export async function aggregate(
 				group.flown++;
 				group.delayTotal += delay;
 
-				if (delay > 15) {
+				if (delay >= 15) {
 					group.delayed++;
 				}
 			}
