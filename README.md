@@ -27,6 +27,8 @@ Public numbers from public sources, checked every day and published only after a
 2. **Reviewed by a person.** Each pull request is reviewed and merged by hand.
 3. **Released by hand.** Each release is named for its date, such as `2026-10-14`, and comes with a manifest listing every file and its checksum. Releases are immutable, so a release's files can never change. Mistakes are fixed in a later release, and the history shows both.
 
+**About the flight history.** DOT's on-time records come from the airlines that report to DOT, which are the larger U.S. carriers, so they don't include every flight. Each row covers flights between the Lower 48 states and DC, a flight counts toward `disruptShare` if it was cancelled or diverted, and `delayShare` counts flights that flew and arrived more than 15 minutes late.
+
 Anyone can rerun a script on the same source data and get the same file. The scoring engine that reads this data is in [`rideorfly-app/engine`](https://github.com/rideorfly-app/engine).
 
 ## Licenses
