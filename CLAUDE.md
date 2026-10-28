@@ -34,14 +34,15 @@ The owner is a web developer who builds custom WordPress themes and plugins. Inf
 | `LICENSE`, `NOTICE` | Apache 2.0, for the scripts |
 | `LICENSE-DATA` | CC BY 4.0, for the data files |
 | `src/cli.ts` | Runs a job locally; jobs are the folders in `src/` other than `lib/` |
-| `src/lib/` | Shared helpers: `job.ts` (a job's shape), `download.ts`, `csv.ts` (reads a zipped CSV), `months.ts`, `write.ts` (the file format) |
+| `src/lib/` | Shared helpers: `job.ts` (a job's shape), `download.ts`, `zip.ts` (reads a text file inside a zip a line at a time), `csv.ts` (reads a zipped CSV), `months.ts`, `write.ts` (the file format) |
 | `src/flight-history/` | The flight-history job: `aggregate.ts` (DOT records to rows), `checks.ts` (sanity ranges), `summary.ts` (pull request text), `index.ts` (the job) |
 | `src/accuracy/` | The accuracy report job: `history.ts` (reads the flight-history files, and only the months up to a date), `flights.ts` (a month's flights by route and day), `score.ts` (what the engine would have estimated, and how close it came), `report.ts` (the file's rows), `engine.ts` (checks that the installed engine is the one `package.json` pins), `summary.ts` (pull request text), `rollup.ts` (combines months into one table), `index.ts` (the job) |
-| `test/` | Vitest tests; `test/flight-history/` has a made-up zipped CSV of nine flights, and `test/accuracy/` a small made-up history |
+| `src/gas-prices/` | The weekly gas-prices job: `series.ts` (which of EIA's series, and reading its file), `checks.ts` (sanity ranges), `summary.ts` (pull request text), `index.ts` (the job) |
+| `test/` | Vitest tests; `test/flight-history/` has a made-up zipped CSV of nine flights, and `test/accuracy/` a small made-up history, and `test/gas-prices/` a made-up copy of EIA's file (`PET.txt`, zipped) |
 | `datasets/` | Everything published (CC BY 4.0), one row per line, including the hand-kept tables, one file each, edited in place. Empty on `init` |
 | `.github/workflows/tests.yml` | Lint, types, and tests on pushes and pull requests |
 
-Not built yet ("Jobs, workflows, and layout" in the plan): the other datasets' jobs (`src/<job>/`, with tests in `test/<job>/`), the manifest, and the `daily.yml` (runs every job), `job.yml` (one job; also run by hand), and `release.yml` (the Release data button) workflows.
+Not built yet ("Jobs, workflows, and layout" in the plan): the jobs for per diem, road safety, winter passes, airports, and places and ZIPs, the two hand-kept tables (rental rates, airport parking), the manifest, and the `daily.yml` (runs every job), `job.yml` (one job; also run by hand), and `release.yml` (the Release data button) workflows.
 
 ## Commands
 
@@ -58,6 +59,8 @@ Not built yet ("Jobs, workflows, and layout" in the plan): the other datasets' j
 | Make a range | `npm run job -- flight-history --from 2021-01 --to 2026-08` |
 | Accuracy report for one month (needs flight history from 6 months earlier through that month) | `npm run job -- accuracy --month 2024-11` |
 | Combine accuracy reports | `node src/accuracy/rollup.ts 2023-01 2025-12` |
+| Is there a new week of gas prices? | `npm run job -- gas-prices --check` |
+| Make one week of gas prices (the Monday) | `npm run job -- gas-prices --update 2026-10-26` |
 
 Downloads are cached in `.cache/` (ignored by Git). Node runs the TypeScript directly, so there's no build step; imports use `.ts` extensions.
 
@@ -103,3 +106,12 @@ A second check, on years not used to choose the method: flight history was built
 
 - **The optimistic lean depends on the era.** `average`'s bias was +0.05 minutes in 2017 to 2019, when delays were steady, and -2.8 in 2022 and -2.1 in 2023 to 2025, as delays rose after the pandemic. A straight average runs low whenever delays are rising.
 - **Two cautions.** Route counts jump in January 2018, so rows from before then may not describe quite the same set of flights as rows after; the 2018 and 2019 estimates straddle the change, and `average` still won. And the 2022 estimates average in 2021, a pandemic-recovery year.
+
+## How the gas-prices job was checked
+
+Run on the week of 2026-10-26 (and 2026-10-19), against EIA's live bulk file (about 56 MB, cached in `.cache/gas-prices/` and fetched again after 12 hours):
+
+- **Every price recomputed independently** with separate Python code: nine of nine regions match EIA's series exactly, and so do the week-before and year-earlier comparisons in the pull request summary.
+- **Same bytes on a second run.** The EIA copy changes daily, but a past week's prices don't.
+- **No key.** EIA's own weekly page offers only an old binary spreadsheet (`.xls`), and its API needs a key. The bulk file (`eia.gov/opendata/bulk/PET.zip`, JSON lines) needs neither, and has every region the engine uses. `west-coast` is EIA's "West Coast except California" series, because the engine puts California in its own region (`california`) and Arizona, Nevada, Oregon, and Washington in `west-coast`.
+- **Bad input is refused:** a Tuesday, or any date EIA has no price for, writes nothing and says why.

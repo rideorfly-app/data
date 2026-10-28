@@ -3,12 +3,13 @@
 //   npm run job -- flight-history --check
 //   npm run job -- flight-history --month 2026-08
 //   npm run job -- flight-history --from 2022-01 --to 2026-08
+//   npm run job -- gas-prices --update 2026-10-26     (weekly and yearly jobs name an update)
 
 import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { Job } from './lib/job.ts';
-import { type Month, monthsBetween, parseMonth } from './lib/months.ts';
+import { monthsBetween, parseMonth } from './lib/months.ts';
 
 const root = join(import.meta.dirname, '..');
 
@@ -26,6 +27,7 @@ const { values, positionals } = parseArgs({
 		month: { type: 'string' },
 		from: { type: 'string' },
 		to: { type: 'string' },
+		update: { type: 'string', multiple: true },
 	},
 });
 
@@ -34,7 +36,7 @@ const names = await jobNames();
 
 if (!name || !names.includes(name)) {
 	console.error(
-		`Usage: npm run job -- JOB [--check | --month YYYY-MM | --from YYYY-MM --to YYYY-MM]`,
+		`Usage: npm run job -- JOB [--check | --month YYYY-MM | --from YYYY-MM --to YYYY-MM | --update ID]`,
 	);
 	console.error(`Jobs: ${names.join(', ')}`);
 	process.exit(1);
@@ -48,26 +50,30 @@ if (values.check) {
 	process.exit(0);
 }
 
-let months: Month[];
+let updates: string[];
 
-if (values.month) {
-	months = [parseMonth(values.month)];
+if (values.update?.length) {
+	updates = values.update;
+} else if (values.month) {
+	updates = [parseMonth(values.month)];
 } else if (values.from && values.to) {
-	months = monthsBetween(parseMonth(values.from), parseMonth(values.to));
+	updates = monthsBetween(parseMonth(values.from), parseMonth(values.to));
 } else {
-	console.error('Say which update: --month YYYY-MM, or --from YYYY-MM --to YYYY-MM.');
+	console.error(
+		'Say which update: --month YYYY-MM, --from YYYY-MM --to YYYY-MM, or --update ID (a week or a year).',
+	);
 	process.exit(1);
 }
 
-for (const month of months) {
-	const build = await job.build(month);
+for (const update of updates) {
+	const build = await job.build(update);
 	const path = join(root, build.path);
 
 	await mkdir(dirname(path), { recursive: true });
 	await writeFile(path, build.contents);
 
 	console.log(`${build.path}`);
-	if (months.length === 1) {
+	if (updates.length === 1) {
 		console.log(`\n${build.summary}`);
 	}
 }

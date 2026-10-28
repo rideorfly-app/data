@@ -1,5 +1,4 @@
-import { spawn } from 'node:child_process';
-import { createInterface } from 'node:readline';
+import { readZippedLines } from './zip.ts';
 
 /**
  * Splits one CSV line into its fields. BTS quotes text fields, which can hold
@@ -42,17 +41,9 @@ export function splitCsvLine(line: string): string[] {
  * header names. Streams through `unzip`, so a 30 MB download never sits in memory.
  */
 export async function* readZippedCsv(zipPath: string): AsyncGenerator<Record<string, string>> {
-	const unzip = spawn('unzip', ['-p', zipPath, '*.csv'], { stdio: ['ignore', 'pipe', 'pipe'] });
-	const exited = new Promise<number | null>((resolve) => unzip.on('close', resolve));
-	let complaint = '';
-
-	unzip.stderr.on('data', (chunk: Buffer) => {
-		complaint += chunk.toString();
-	});
-
 	let columns: string[] | null = null;
 
-	for await (const line of createInterface({ input: unzip.stdout })) {
+	for await (const line of readZippedLines(zipPath, '*.csv')) {
 		if (line === '') {
 			continue;
 		}
@@ -65,13 +56,5 @@ export async function* readZippedCsv(zipPath: string): AsyncGenerator<Record<str
 		}
 
 		yield Object.fromEntries(columns.map((name, i) => [name, fields[i] ?? '']));
-	}
-
-	const code = await exited;
-
-	if (code !== 0) {
-		throw new Error(
-			`unzip failed on ${zipPath} (exit code ${code}). Is the download complete?\n${complaint.trim()}`,
-		);
 	}
 }
