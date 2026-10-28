@@ -1,5 +1,6 @@
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
+import { promisify } from 'node:util';
 
 /**
  * Reads one text file inside a zip a line at a time. Streams through `unzip`,
@@ -37,4 +38,13 @@ export async function readZippedText(zipPath: string, member: string): Promise<s
 	}
 
 	return text;
+}
+
+/** The path of every file in a zip, as `unzip -Z1` lists them. */
+export async function zipMembers(zipPath: string): Promise<string[]> {
+	const { stdout } = await promisify(execFile)('unzip', ['-Z1', zipPath], {
+		maxBuffer: 64 * 1024 * 1024,
+	});
+
+	return stdout.split('\n').filter((name) => name !== '' && !name.endsWith('/'));
 }

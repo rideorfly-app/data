@@ -39,11 +39,15 @@ export function splitCsvLine(line: string): string[] {
 /**
  * Reads the CSV inside a zip file one row at a time, as an object keyed by the
  * header names. Streams through `unzip`, so a 30 MB download never sits in memory.
+ * `member` names the file when the zip holds more than one CSV.
  */
-export async function* readZippedCsv(zipPath: string): AsyncGenerator<Record<string, string>> {
+export async function* readZippedCsv(
+	zipPath: string,
+	member = '*.csv',
+): AsyncGenerator<Record<string, string>> {
 	let columns: string[] | null = null;
 
-	for await (const line of readZippedLines(zipPath, '*.csv')) {
+	for await (const line of readZippedLines(zipPath, member)) {
 		if (line === '') {
 			continue;
 		}
