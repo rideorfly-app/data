@@ -1,4 +1,5 @@
 import type { CheckResult } from '../flight-history/checks.ts';
+import { STATE_CODES } from '../lib/states.ts';
 
 /** One airport's cheapest daily parking rate, as kept by hand. */
 export interface ParkingRow {
@@ -25,6 +26,33 @@ export interface RentalRow {
 	reviewed: string;
 	note: string;
 }
+
+/** A mountain pass on a major highway where winter weather slows or closes the road. */
+export interface PassRow {
+	name: string;
+	state: string;
+	highway: string;
+	lat: number;
+	lon: number;
+	elevationFeet: number;
+
+	/** USGS's id for the feature the location came from; null when the location was set by hand. */
+	gnisId: number | null;
+	reviewed: string;
+	note: string;
+}
+
+export const PASS_KEYS = [
+	'name',
+	'state',
+	'highway',
+	'lat',
+	'lon',
+	'elevationFeet',
+	'gnisId',
+	'reviewed',
+	'note',
+] as const;
 
 export const PARKING_KEYS = [
 	'code',
@@ -59,6 +87,9 @@ export const REVIEW_DAYS = 400;
 export const EXPECTED = {
 	parkingDailyRate: [3, 100],
 	rentalDailyRate: [20, 150],
+
+	/** Feet. Passes are chosen for winter closures, so a few sit under 4,000. */
+	passElevation: [2500, 14000],
 } as const;
 
 /** A real calendar date as `YYYY-MM-DD`: JavaScript reads February 30 as March 2, so it has to round-trip. */
@@ -154,6 +185,57 @@ export function checkRental(rows: readonly RentalRow[]): CheckResult[] {
 				(row) =>
 					row.basis === 'estimate' &&
 					isLink(row.source) &&
+					isDate(row.reviewed) &&
+					typeof row.note === 'string',
+			),
+		},
+	];
+}
+
+/** Checks the winter-passes table: sorted by state then name, on a numbered interstate or US highway, inside the Lower 48. */
+export function checkPasses(rows: readonly PassRow[]): CheckResult[] {
+	const states = new Set<string>(STATE_CODES.values());
+
+	return [
+		{
+			name: 'Every row has exactly the expected keys, in order',
+			passed: rows.every((row) => hasKeys(row, PASS_KEYS)),
+		},
+		{
+			name: 'Every pass has a name and a state, sorted by state then name with no repeats',
+			passed:
+				rows.every((row) => row.name !== '' && states.has(row.state)) &&
+				rows.every(
+					(row, i) =>
+						i === 0 ||
+						`${rows[i - 1]?.state}\u0000${rows[i - 1]?.name}` < `${row.state}\u0000${row.name}`,
+				),
+		},
+		{
+			name: 'Every highway is an interstate or US route, such as I-80 or US-26/US-287',
+			passed: rows.every((row) => /^(I|US)-\d{1,3}(\/(I|US)-\d{1,3})*$/.test(row.highway)),
+		},
+		{
+			name: 'Every location is inside the Lower 48',
+			passed: rows.every(
+				(row) =>
+					typeof row.lat === 'number' &&
+					typeof row.lon === 'number' &&
+					row.lat >= 24 &&
+					row.lat <= 50 &&
+					row.lon >= -125 &&
+					row.lon <= -66,
+			),
+		},
+		{
+			name: `Every elevation is plausible (${EXPECTED.passElevation[0].toLocaleString('en-US')} to ${EXPECTED.passElevation[1].toLocaleString('en-US')} feet)`,
+			passed: rows.every((row) => inRange(row.elevationFeet, EXPECTED.passElevation)),
+		},
+		{
+			name: 'Every row has a USGS id (or null), a real review date, and a note (which may be empty)',
+			passed: rows.every(
+				(row) =>
+					(row.gnisId === null || (Number.isInteger(row.gnisId) && row.gnisId > 0)) &&
 					isDate(row.reviewed) &&
 					typeof row.note === 'string',
 			),

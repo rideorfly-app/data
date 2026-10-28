@@ -1,14 +1,23 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Build, Job } from '../lib/job.ts';
-import { checkParking, checkRental, type ParkingRow, type RentalRow, staleRows } from './checks.ts';
+import {
+	checkParking,
+	checkPasses,
+	checkRental,
+	type ParkingRow,
+	type PassRow,
+	type RentalRow,
+	staleRows,
+} from './checks.ts';
 
 const root = join(import.meta.dirname, '..', '..');
 
-/** The two tables that people keep by hand, and where they live. */
+/** The tables that people keep by hand, and where they live. */
 export const FILES = {
 	parking: 'datasets/airport-parking.json',
 	rental: 'datasets/rental-rates.json',
+	passes: 'datasets/winter-passes.json',
 } as const;
 
 async function load<T>(path: string, directory: string): Promise<T[] | null> {
@@ -18,7 +27,7 @@ async function load<T>(path: string, directory: string): Promise<T[] | null> {
 }
 
 /**
- * Looks at both hand-kept tables and says what is wrong with them or what is
+ * Looks at the hand-kept tables and says what is wrong with them or what is
  * due for a new look. Returns the problems (the checks that failed, or a table
  * that is missing) and the rows past their review date.
  */
@@ -28,6 +37,7 @@ export async function inspect(
 ): Promise<{ problems: string[]; due: string[]; counts: string }> {
 	const parking = await load<ParkingRow>(FILES.parking, directory);
 	const rental = await load<RentalRow>(FILES.rental, directory);
+	const passes = await load<PassRow>(FILES.passes, directory);
 	const problems: string[] = [];
 	const due: string[] = [];
 
@@ -51,10 +61,20 @@ export async function inspect(
 		due.push(...staleRows(rental, (row: RentalRow) => row.region, today));
 	}
 
+	if (passes === null) {
+		problems.push(`${FILES.passes} is missing.`);
+	} else {
+		for (const check of checkPasses(passes).filter((result) => !result.passed)) {
+			problems.push(`${FILES.passes}: ${check.name}`);
+		}
+
+		due.push(...staleRows(passes, (row: PassRow) => row.name, today));
+	}
+
 	return {
 		problems,
 		due,
-		counts: `${parking?.length ?? 0} airports, ${rental?.length ?? 0} rental regions`,
+		counts: `${parking?.length ?? 0} airports, ${rental?.length ?? 0} rental regions, ${passes?.length ?? 0} passes`,
 	};
 }
 
@@ -80,7 +100,7 @@ const job: Job = {
 
 	async build(): Promise<Build> {
 		throw new Error(
-			`The hand-kept tables are edited by hand, in a pull request: ${FILES.parking} and ${FILES.rental}. Run "npm run job -- hand-kept --check" to validate them.`,
+			`The hand-kept tables are edited by hand, in a pull request: ${FILES.parking}, ${FILES.rental}, and ${FILES.passes}. Run "npm run job -- hand-kept --check" to validate them.`,
 		);
 	},
 };

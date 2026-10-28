@@ -4,8 +4,10 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
 	checkParking,
+	checkPasses,
 	checkRental,
 	type ParkingRow,
+	type PassRow,
 	RENTAL_REGIONS,
 	type RentalRow,
 	staleRows,
@@ -32,6 +34,19 @@ const rental = (region: string, over: Partial<RentalRow> = {}): RentalRow => ({
 	source: 'https://example.test/rates',
 	reviewed: '2026-10-28',
 	note: 'A placeholder.',
+	...over,
+});
+
+const pass = (name: string, over: Partial<PassRow> = {}): PassRow => ({
+	name,
+	state: 'CO',
+	highway: 'I-70',
+	lat: 39.53,
+	lon: -106.22,
+	elevationFeet: 10612,
+	gnisId: 183,
+	reviewed: '2026-10-28',
+	note: '',
 	...over,
 });
 
@@ -126,6 +141,69 @@ describe('checkRental', () => {
 	});
 });
 
+describe('checkPasses', () => {
+	it('passes for well-formed rows, with or without a USGS id', () => {
+		const rows = [
+			pass('Donner Pass', { state: 'CA', highway: 'I-80' }),
+			pass('Vail Pass'),
+			pass('Togwotee Pass', { state: 'WY', highway: 'US-26/US-287', gnisId: null }),
+		];
+
+		expect(failed(checkPasses(rows))).toEqual([]);
+	});
+
+	it('catches a repeat, rows out of order, an unknown state, and a blank name', () => {
+		const message = expect.stringContaining('sorted by state then name');
+
+		expect(failed(checkPasses([pass('Vail Pass'), pass('Vail Pass')]))).toEqual([message]);
+		expect(failed(checkPasses([pass('Vail Pass'), pass('Berthoud Pass')]))).toEqual([message]);
+		expect(failed(checkPasses([pass('Vail Pass', { state: 'XX' })]))).toEqual([message]);
+		expect(failed(checkPasses([pass('')]))).toEqual([message]);
+	});
+
+	it('wants a numbered interstate or US route', () => {
+		const message = expect.stringContaining('interstate or US route');
+
+		expect(failed(checkPasses([pass('Vail Pass', { highway: 'SR-9' })]))).toEqual([message]);
+		expect(failed(checkPasses([pass('Vail Pass', { highway: 'I-70 and US-6' })]))).toEqual([
+			message,
+		]);
+		expect(failed(checkPasses([pass('Vail Pass', { highway: '' })]))).toEqual([message]);
+	});
+
+	it('catches a location outside the Lower 48, such as latitude and longitude swapped', () => {
+		const message = expect.stringContaining('Lower 48');
+
+		expect(failed(checkPasses([pass('Vail Pass', { lat: -106.22, lon: 39.53 })]))).toEqual([
+			message,
+		]);
+		expect(failed(checkPasses([pass('Vail Pass', { lat: 61.1, lon: -149.8 })]))).toEqual([message]);
+		expect(failed(checkPasses([pass('Vail Pass', { lon: 10.5 })]))).toEqual([message]);
+		expect(failed(checkPasses([pass('Vail Pass', { lon: -130 })]))).toEqual([message]);
+	});
+
+	it('catches an elevation in meters, or an impossible one', () => {
+		const message = expect.stringContaining('elevation is plausible');
+
+		expect(failed(checkPasses([pass('Vail Pass', { elevationFeet: 1000 })]))).toEqual([message]);
+		expect(failed(checkPasses([pass('Vail Pass', { elevationFeet: 106120 })]))).toEqual([message]);
+	});
+
+	it('catches a bad USGS id, review date, or note, and keys in another order', () => {
+		const message = expect.stringContaining('USGS id');
+
+		expect(failed(checkPasses([pass('Vail Pass', { gnisId: 0 })]))).toEqual([message]);
+		expect(failed(checkPasses([pass('Vail Pass', { gnisId: 1.5 })]))).toEqual([message]);
+		expect(failed(checkPasses([pass('Vail Pass', { reviewed: 'October' })]))).toEqual([message]);
+
+		const { name, ...rest } = pass('Vail Pass');
+
+		expect(failed(checkPasses([{ ...rest, name } as PassRow]))).toEqual([
+			expect.stringContaining('expected keys'),
+		]);
+	});
+});
+
 describe('staleRows', () => {
 	it('lists rows reviewed more than 400 days before today', () => {
 		const rows = [
@@ -155,12 +233,13 @@ describe('inspect and the job', () => {
 		const directory = await folder({
 			[FILES.parking]: [parking('ATL', { reviewed: '2024-01-01' }), parking('BOS')],
 			[FILES.rental]: rentals,
+			[FILES.passes]: [pass('Vail Pass')],
 		});
 
 		expect(await inspect('2026-10-28', directory)).toEqual({
 			problems: [],
 			due: ['ATL'],
-			counts: '2 airports, 8 rental regions',
+			counts: '2 airports, 8 rental regions, 1 passes',
 		});
 	});
 
@@ -171,6 +250,7 @@ describe('inspect and the job', () => {
 		expect(problems).toEqual([
 			expect.stringContaining('airport-parking.json: Every daily rate is plausible'),
 			`${FILES.rental} is missing.`,
+			`${FILES.passes} is missing.`,
 		]);
 	});
 
