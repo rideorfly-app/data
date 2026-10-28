@@ -88,8 +88,8 @@ export const EXPECTED = {
 	parkingDailyRate: [3, 100],
 	rentalDailyRate: [20, 150],
 
-	/** Feet. Passes are chosen for winter closures, so a few sit under 4,000. */
-	passElevation: [2500, 14000],
+	/** Feet. Passes are chosen for winter closures, so many sit under 4,000, and eastern ones can sit near 1,000. */
+	passElevation: [1000, 14000],
 } as const;
 
 /** A real calendar date as `YYYY-MM-DD`: JavaScript reads February 30 as March 2, so it has to round-trip. */

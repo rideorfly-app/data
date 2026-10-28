@@ -185,7 +185,7 @@ describe('checkPasses', () => {
 	it('catches an elevation in meters, or an impossible one', () => {
 		const message = expect.stringContaining('elevation is plausible');
 
-		expect(failed(checkPasses([pass('Vail Pass', { elevationFeet: 1000 })]))).toEqual([message]);
+		expect(failed(checkPasses([pass('Vail Pass', { elevationFeet: 500 })]))).toEqual([message]);
 		expect(failed(checkPasses([pass('Vail Pass', { elevationFeet: 106120 })]))).toEqual([message]);
 	});
 
