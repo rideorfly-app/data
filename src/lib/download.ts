@@ -46,3 +46,25 @@ export async function download(url: string, destination: string): Promise<string
 
 	return destination;
 }
+
+/**
+ * The file name to keep a download under: the last part of the link's path,
+ * with `%20` and the like decoded. A link is untrusted text, so a name that
+ * could lead anywhere but the cache folder (a slash, a backslash, `..`, or
+ * nothing at all) is refused instead of cleaned up.
+ */
+export function cacheName(url: string): string {
+	let name: string;
+
+	try {
+		name = decodeURIComponent(new URL(url).pathname.split('/').pop() ?? '');
+	} catch {
+		throw new Error(`Can't tell what file ${url} is. Refusing to save it.`);
+	}
+
+	if (name === '' || name === '.' || name === '..' || /[\\/\0]/.test(name)) {
+		throw new Error(`${url} doesn't end in a plain file name, so it won't be saved.`);
+	}
+
+	return name;
+}

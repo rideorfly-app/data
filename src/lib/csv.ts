@@ -1,3 +1,5 @@
+import { createReadStream } from 'node:fs';
+import { createInterface } from 'node:readline';
 import { readZippedLines } from './zip.ts';
 
 /**
@@ -36,18 +38,11 @@ export function splitCsvLine(line: string): string[] {
 	return fields;
 }
 
-/**
- * Reads the CSV inside a zip file one row at a time, as an object keyed by the
- * header names. Streams through `unzip`, so a 30 MB download never sits in memory.
- * `member` names the file when the zip holds more than one CSV.
- */
-export async function* readZippedCsv(
-	zipPath: string,
-	member = '*.csv',
-): AsyncGenerator<Record<string, string>> {
+/** Turns CSV lines into rows keyed by the header names. */
+async function* rows(lines: AsyncIterable<string>): AsyncGenerator<Record<string, string>> {
 	let columns: string[] | null = null;
 
-	for await (const line of readZippedLines(zipPath, member)) {
+	for await (const line of lines) {
 		if (line === '') {
 			continue;
 		}
@@ -61,4 +56,23 @@ export async function* readZippedCsv(
 
 		yield Object.fromEntries(columns.map((name, i) => [name, fields[i] ?? '']));
 	}
+}
+
+/**
+ * Reads the CSV inside a zip file one row at a time, as an object keyed by the
+ * header names. Streams through `unzip`, so a 30 MB download never sits in memory.
+ * `member` names the file when the zip holds more than one CSV.
+ */
+export async function* readZippedCsv(
+	zipPath: string,
+	member = '*.csv',
+): AsyncGenerator<Record<string, string>> {
+	yield* rows(readZippedLines(zipPath, member));
+}
+
+/** Reads a plain CSV file one row at a time. A field can't hold a line break. */
+export async function* readCsvFile(path: string): AsyncGenerator<Record<string, string>> {
+	yield* rows(
+		createInterface({ input: createReadStream(path), crlfDelay: Number.POSITIVE_INFINITY }),
+	);
 }

@@ -34,17 +34,18 @@ The owner is a web developer who builds custom WordPress themes and plugins. Inf
 | `LICENSE`, `NOTICE` | Apache 2.0, for the scripts |
 | `LICENSE-DATA` | CC BY 4.0, for the data files |
 | `src/cli.ts` | Runs a job locally; jobs are the folders in `src/` other than `lib/` |
-| `src/lib/` | Shared helpers: `job.ts` (a job's shape), `download.ts`, `zip.ts` (lists a zip's files, and reads a text file inside one by line or whole), `csv.ts` (reads a zipped CSV), `xlsx.ts` (reads a spreadsheet), `docx.ts` (reads the tables in a Word file), `xml.ts`, `states.ts` (state names to USPS codes), `months.ts`, `write.ts` (the file format) |
+| `src/lib/` | Shared helpers: `job.ts` (a job's shape), `download.ts`, `zip.ts` (lists a zip's files, and reads a text file inside one by line or whole), `csv.ts` (reads a CSV, zipped or plain), `download.ts` also keeps `cacheName` (a safe file name for a download), `xlsx.ts` (reads a spreadsheet), `docx.ts` (reads the tables in a Word file), `xml.ts`, `states.ts` (state names to USPS codes), `months.ts`, `write.ts` (the file format) |
 | `src/flight-history/` | The flight-history job: `aggregate.ts` (DOT records to rows), `checks.ts` (sanity ranges), `summary.ts` (pull request text), `index.ts` (the job) |
 | `src/accuracy/` | The accuracy report job: `history.ts` (reads the flight-history files, and only the months up to a date), `flights.ts` (a month's flights by route and day), `score.ts` (what the engine would have estimated, and how close it came), `report.ts` (the file's rows), `engine.ts` (checks that the installed engine is the one `package.json` pins), `summary.ts` (pull request text), `rollup.ts` (combines months into one table), `index.ts` (the job) |
 | `src/gas-prices/` | The weekly gas-prices job: `series.ts` (which of EIA's series, and reading its file), `checks.ts` (sanity ranges), `summary.ts` (pull request text), `index.ts` (the job) |
 | `src/per-diem/` | The yearly per diem job: `links.ts` (finds GSA's files on its listing page), `read.ts` (reads the ZIP-code spreadsheet and the meals table), `checks.ts` (sanity ranges), `summary.ts` (pull request text), `index.ts` (the job) |
 | `src/road-safety/` | The yearly road-safety job: `read.ts` (adds up FARS deaths by state, reads FHWA's miles table, makes the rows), `checks.ts` (sanity ranges), `summary.ts` (pull request text), `index.ts` (the job and its two download links) |
-| `test/` | Vitest tests; `test/flight-history/` has a made-up zipped CSV of nine flights, and `test/accuracy/` a small made-up history, `test/gas-prices/` a made-up copy of EIA's file (`PET.txt`, zipped), `test/lib/` a tiny spreadsheet and Word file for the readers, `test/per-diem/` a miniature of GSA's ZIP-code file and files page, and `test/road-safety/` miniatures of NHTSA's crash file and FHWA's miles table |
+| `src/airports/` | The yearly airports job: `links.ts` (finds the FAA's spreadsheet on its page), `read.ts` (reads the FAA's list and OurAirports', and matches them), `checks.ts` (sanity ranges), `summary.ts` (pull request text), `index.ts` (the job) |
+| `test/` | Vitest tests; `test/flight-history/` has a made-up zipped CSV of nine flights, and `test/accuracy/` a small made-up history, `test/gas-prices/` a made-up copy of EIA's file (`PET.txt`, zipped), `test/lib/` a tiny spreadsheet and Word file for the readers, `test/per-diem/` a miniature of GSA's ZIP-code file and files page, `test/road-safety/` miniatures of NHTSA's crash file and FHWA's miles table, and `test/airports/` miniatures of the FAA's spreadsheet and OurAirports' list, with the awkward cases |
 | `datasets/` | Everything published (CC BY 4.0), one row per line, including the hand-kept tables, one file each, edited in place. Empty on `init` |
 | `.github/workflows/tests.yml` | Lint, types, and tests on pushes and pull requests |
 
-Not built yet ("Jobs, workflows, and layout" in the plan): the jobs for winter passes, airports, and places and ZIPs, the two hand-kept tables (rental rates, airport parking), the manifest, and the `daily.yml` (runs every job), `job.yml` (one job; also run by hand), and `release.yml` (the Release data button) workflows.
+Not built yet ("Jobs, workflows, and layout" in the plan): the jobs for winter passes and places and ZIPs, the two hand-kept tables (rental rates, airport parking), the manifest, and the `daily.yml` (runs every job), `job.yml` (one job; also run by hand), and `release.yml` (the Release data button) workflows.
 
 ## Commands
 
@@ -67,6 +68,8 @@ Not built yet ("Jobs, workflows, and layout" in the plan): the jobs for winter p
 | Make a year of per diem rates | `npm run job -- per-diem --update FY2027` |
 | Is there a new year of road safety? | `npm run job -- road-safety --check` |
 | Make a year of road safety | `npm run job -- road-safety --update 2024` |
+| Is there a new year of airports? | `npm run job -- airports --check` |
+| Make a year of airports | `npm run job -- airports --update 2025` |
 
 Downloads are cached in `.cache/` (ignored by Git). Node runs the TypeScript directly, so there's no build step; imports use `.ts` extensions.
 
@@ -144,3 +147,13 @@ Run on 2023 and 2024 (2024 is the newest year both sources have; 2025 is in neit
 - **Tied out against NHTSA's own table.** The 2023 State Traffic Data fact sheet (DOT HS 813 743) has a state table; its text was read out of the PDF. Vehicle miles match for all 51 places within rounding. Rates match within rounding for 38 of 51, and the other 13 are within 0.04 (California 1.32 against 1.28, Arizona 1.74 against 1.73). Deaths differ in 22 states, and the nation is 41,025 against 40,901. The likely reason is that the crash file was refreshed on 1 April 2026, after the fact sheet (August 2025), and NHTSA's final release adds crashes (California gained 108); that was not confirmed. The 2024 file is the annual report file, so expect its counts to rise a little when NHTSA's final comes out, as 2023's did (about 0.3% nationally).
 - **FHWA's names carry footnote numbers.** The 2024 table calls Tennessee "Tennessee (2)". The first run refused to write a file without Tennessee, and the job now ignores a trailing "(2)". This is why the check for a missing state is there.
 - **Crash files outside a state are left out.** Puerto Rico would be counted and reported, not added.
+
+## How the airports job was checked
+
+Run on 2025, against the FAA's and OurAirports' live files:
+
+- **What it makes.** `datasets/airports/2025.json`: 412 commercial-service airports in the Lower 48 and DC, one per line: `code`, `name`, `city`, `state`, `size`, `lat`, `lon`, `enplanements`. The list, sizes, and passenger counts are the FAA's CY2025 spreadsheet. The FAA's file has no coordinates, so those come from OurAirports (public domain), recorded in the pull request summary with the date of the list used. Hub class L, M become `large`, `medium`; S, N, and the 54 commercial airports with no hub class become `small`. 29 large, 32 medium, 351 small.
+- **Rebuilt independently.** Separate Python code re-did the matching and rebuilt all 412 rows from the same two files: every row is identical. Same bytes on a second run.
+- **The match has to be careful, and the checks found out why.** The FAA's identifier usually equals the IATA code, but not always, and a code can mean two airports. The FAA's BVU is Boulder City, Nevada; IATA's BVU is Beluga, Alaska. Matching on the IATA code alone put Boulder City at Alaskan coordinates (a latitude of 61 gave it away). So the job takes every OurAirports airport filed under the code, either way; drops any outside the Lower 48 and DC; and prefers the one in the FAA's state. A single candidate in another state is accepted and listed for review (DCA: the FAA says Virginia, OurAirports says DC); two or more with none in the right state, or only a closed airport, are left out and listed, not guessed. In 2025 that was 412 of 412 matched: 398 by IATA code and 14 by the FAA's own identifier.
+- **Coordinates** are rounded to four places (about 10 meters).
+- **The FAA's page.** The page-fetch tool is refused (403) but a plain request from Node or `curl` works. Re-test from GitHub Actions when building the automation.
