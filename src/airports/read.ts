@@ -126,7 +126,7 @@ export interface Matched {
 }
 
 const TYPE_RANK: Record<string, number> = { large_airport: 0, medium_airport: 1, small_airport: 2 };
-/** To four places (about 10 meters), rounding the number as stored so an exact tie falls where other tools put it. */
+/** To four places (about 10 meters). `toFixed` rounds the number as stored, and an exact tie goes away from zero. */
 const round4 = (value: number) => Number(value.toFixed(4));
 
 /**

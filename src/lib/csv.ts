@@ -76,3 +76,47 @@ export async function* readCsvFile(path: string): AsyncGenerator<Record<string, 
 		createInterface({ input: createReadStream(path), crlfDelay: Number.POSITIVE_INFINITY }),
 	);
 }
+
+/**
+ * Turns lines of a table separated by `|` or tabs (whichever the header uses)
+ * into rows keyed by the header names, with the padding trimmed from every
+ * field. The Census changed from tabs to `|` between its 2024 and 2025
+ * Gazetteer files, so the separator is read from the header, not assumed.
+ */
+async function* table(lines: AsyncIterable<string>): AsyncGenerator<Record<string, string>> {
+	let columns: string[] | null = null;
+	let separator = '\t';
+
+	for await (const raw of lines) {
+		const line = raw.replace(/^\uFEFF/, '');
+
+		if (line.trim() === '') {
+			continue;
+		}
+
+		if (!columns) {
+			separator = line.includes('|') ? '|' : '\t';
+			columns = line.split(separator).map((name) => name.trim());
+			continue;
+		}
+
+		const fields = line.split(separator);
+
+		yield Object.fromEntries(columns.map((name, i) => [name, (fields[i] ?? '').trim()]));
+	}
+}
+
+/** Reads a `|` or tab separated text file inside a zip, one row at a time. */
+export async function* readZippedTable(
+	zipPath: string,
+	member: string,
+): AsyncGenerator<Record<string, string>> {
+	yield* table(readZippedLines(zipPath, member));
+}
+
+/** Reads a plain `|` or tab separated text file, one row at a time. */
+export async function* readTableFile(path: string): AsyncGenerator<Record<string, string>> {
+	yield* table(
+		createInterface({ input: createReadStream(path), crlfDelay: Number.POSITIVE_INFINITY }),
+	);
+}
