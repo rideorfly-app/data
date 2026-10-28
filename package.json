@@ -17,7 +17,7 @@
 		"job": "node src/cli.ts"
 	},
 	"dependencies": {
-		"@rideorfly/engine": "github:rideorfly-app/engine#957239b8acace9a6c91f624ccaa9ff6dd9e4005e"
+		"@rideorfly/engine": "github:rideorfly-app/engine#020adef5351edb33e361503c4ef07d65edb1a3e8"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.15",

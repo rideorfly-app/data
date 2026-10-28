@@ -36,11 +36,12 @@ The owner is a web developer who builds custom WordPress themes and plugins. Inf
 | `src/cli.ts` | Runs a job locally; jobs are the folders in `src/` other than `lib/` |
 | `src/lib/` | Shared helpers: `job.ts` (a job's shape), `download.ts`, `csv.ts` (reads a zipped CSV), `months.ts`, `write.ts` (the file format) |
 | `src/flight-history/` | The flight-history job: `aggregate.ts` (DOT records to rows), `checks.ts` (sanity ranges), `summary.ts` (pull request text), `index.ts` (the job) |
-| `test/` | Vitest tests; `test/flight-history/` has a made-up zipped CSV of nine flights |
+| `src/accuracy/` | The accuracy report job: `history.ts` (reads the flight-history files, and only the months up to a date), `flights.ts` (a month's flights by route and day), `score.ts` (what the engine would have estimated, and how close it came), `report.ts` (the file's rows), `summary.ts` (pull request text), `rollup.ts` (combines months into one table), `index.ts` (the job) |
+| `test/` | Vitest tests; `test/flight-history/` has a made-up zipped CSV of nine flights, and `test/accuracy/` a small made-up history |
 | `datasets/` | Everything published (CC BY 4.0), one row per line, including the hand-kept tables, one file each, edited in place. Empty on `init` |
 | `.github/workflows/tests.yml` | Lint, types, and tests on pushes and pull requests |
 
-Not built yet ("Jobs, workflows, and layout" in the plan): the other datasets' jobs (`src/<job>/`, with tests in `test/<job>/`), the accuracy report, the manifest, and the `daily.yml` (runs every job), `job.yml` (one job; also run by hand), and `release.yml` (the Release data button) workflows.
+Not built yet ("Jobs, workflows, and layout" in the plan): the other datasets' jobs (`src/<job>/`, with tests in `test/<job>/`), the manifest, and the `daily.yml` (runs every job), `job.yml` (one job; also run by hand), and `release.yml` (the Release data button) workflows.
 
 ## Commands
 
@@ -54,14 +55,16 @@ Not built yet ("Jobs, workflows, and layout" in the plan): the other datasets' j
 | Everything CI runs | `npm run verify` |
 | Is there new data? | `npm run job -- flight-history --check` |
 | Make one month | `npm run job -- flight-history --month 2026-08` |
-| Make a range | `npm run job -- flight-history --from 2022-01 --to 2026-08` |
+| Make a range | `npm run job -- flight-history --from 2021-01 --to 2026-08` |
+| Accuracy report for one month (needs flight history from 6 months earlier through that month) | `npm run job -- accuracy --month 2024-11` |
+| Combine accuracy reports | `node src/accuracy/rollup.ts 2023-01 2025-12` |
 
 Downloads are cached in `.cache/` (ignored by Git). Node runs the TypeScript directly, so there's no build step; imports use `.ts` extensions.
 
 ## Getting started
 
 - Initial work happens on the `init` branch, with a pull request into `master`. `init` never commits datasets: `datasets/` is in the local exclude list (`.git/info/exclude`), so files made while testing stay untracked.
-- The backfill (January 2022 to the newest month) runs locally. Before it, `datasets/` comes off the exclude list, and the owner turns `master`'s pull-request rule off just long enough to push it straight to `master`, then back on. Signed commits, no force pushes, and no deletion stay on throughout.
+- The backfill (January 2021 to the newest month) runs locally. Before it, `datasets/` comes off the exclude list, and the owner turns `master`'s pull-request rule off just long enough to push it straight to `master`, then back on. Signed commits, no force pushes, and no deletion stay on throughout.
 - After the backfill, tighten the sanity ranges in `src/flight-history/checks.ts`. They are deliberately loose (set from three months). Narrow them to the spread of all the months, with a margin, so a broken file still fails.
 
 ## How the flight-history job was checked
@@ -71,3 +74,20 @@ Run on August 2026, January 2022, and November 2024 (about 30 MB each, cached in
 - **Every row recomputed independently** with separate code. Zero mismatches in all three months, and the delayed-flight count equals BTS's own `ArrDel15` flag total.
 - **DOT's *Air Travel Consumer Report* for November 2024** (the January 2025 edition) matches exactly: 575,404 records, 488,033 on time, 2,629 cancelled, and 842 diverted for the whole file (its Table 7A), and the arrivals and on-time percentage at Boston, Dayton, Bozeman, Daytona Beach, Abilene, and Aberdeen (Table 5). DOT's own site blocks automated downloads; the BTS archive copy (`rosap.ntl.bts.gov`) can be fetched. The Lower 48 and DC file keeps 95.7% of those records.
 - To repeat a check, recompute from the cached zip with a few lines of Python (`csv` and `zipfile`) and compare. The job's rules are in `aggregate.ts`.
+
+## How the accuracy report was checked
+
+The job (`src/accuracy/`) was run for every month from January 2023 to December 2025 (36 reports, local and uncommitted like the flight history), using flight history from January 2017. It tests the engine's three methods (the pinned commit `020adef`): `average` (the same month averaged over the past five years, skipping 2020, blended with the airports' figures for small routes), `last-year` (the same month last year), and `newest` (the newest month alone).
+
+- **Route-days recomputed independently.** Three route-days in November 2024 (DAL-HOU, ATL-LGA, DEN-LAX) and the total of 72,310 route-days with three or more flights match a separate Python recomputation from the cached zip, to the minute.
+- **An estimate recomputed independently.** The `average` method, rebuilt in Python from the flight-history files for November 2024 at 3 months ahead, gives the job's numbers exactly: 5,082 routes, 547,204 flights, an average delay off by 5.99 minutes, bias +2.09, delayed-share off by 0.0499, disruption share off by 0.0083.
+- **No peeking.** A test checks that every estimate starts from the newest month DOT would have published by then, and fails if the history returned later months.
+- **Local history needed two exceptions.** 2020-04, 2020-05, and 2020-06 fail the flight-history checks (the pandemic collapse in flights); the engine skips 2020 anyway. 2017 to 2019 have fewer than 4,000 routes a month (3,698 to 3,885 in 2017), under the floor in `checks.ts`, which was set from three recent months. Those months were built with a scratch script that waived only that floor. The floor is for the backfill from 2021; it needs no change for this.
+
+What the 36 months showed (the rolled-up table is `node src/accuracy/rollup.ts 2023-01 2025-12`):
+
+- **Delay figures, average delay off by per route, 3 months ahead:** `average` 7.6 minutes, `last-year` 9.5, `newest` 11.2. At 6 months ahead: 7.5, 9.5, 11.2. `average` is also best on delayed-flight share (6.3% off, against 7.8% and 9.2%) and on cancellations and diversions (1.7%, against 2.0% and 2.1%). It beat `last-year` in each of 2023, 2024, and 2025 (7.6, 7.7, and 7.4 minutes against 9.5, 9.3, and 9.8).
+- **Why `average`:** a first experiment, run with a scratch script outside the repos, found that every extra month a method stacks up adds that month's luck. The method the plan first described (the newest month plus the seasonal change averaged over three years) was 10.1 minutes off; the owner's version with one past year was 12.0; two years were 10.7. The same month averaged over 2, 3, and 5 years was 8.7, 8.2, and 7.9; blending in the airports for small routes took five years to 7.6. A nudge for how the current year is running (the nationwide last three months against the same months in past years, half or all of it) did not improve it (7.7 with half) and was left out.
+- **It runs about 2 minutes optimistic** (bias −2.1), because delays have crept up and the older years in the average pull it down. The nudge would halve that but costs accuracy elsewhere. Not fixed.
+- **Flight times:** against the day's typical (median) flight, `average` reads about 10 minutes long: 37% of route-days within 10 minutes, 65% within 15%. The other two methods read 11 minutes long, with 35 to 36% within 10 minutes and 60 to 62% within 15%. About half of the gap is the estimate aiming at the average flight, which late flights pull above the typical one: against the day's average flight the median error is about +4.6 minutes, and 40% are within 10 minutes. The owner decided "the average flight, bad days included" is the right thing to plan around.
+- **Coverage:** in November 2024, 249 of 5,331 routes (3,687 flights) had no record in the newest month and would have used typical figures. Across the 36 months, 0.37% of flights were on routes with no past record of the month (mostly new routes), which start from their newest month and are off by about 17 minutes.

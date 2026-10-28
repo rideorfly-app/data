@@ -20,7 +20,7 @@ export function sourceUrl(month: Month): string {
 }
 
 /** The months already in the repo, oldest first. */
-async function monthsOnHand(directory = join(root, folder)): Promise<Month[]> {
+export async function monthsOnHand(directory = join(root, folder)): Promise<Month[]> {
 	const names = await readdir(directory).catch(() => []);
 
 	return names
