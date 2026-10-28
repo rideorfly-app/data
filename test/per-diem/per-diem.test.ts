@@ -123,19 +123,72 @@ describe('mealsTable', () => {
 });
 
 describe('toRows', () => {
-	it('puts rows in ZIP order, with the lunch added and the year dropped', async () => {
+	/** A destination with the fields these tests care about. */
+	const dest = (
+		zip: string,
+		destinationId: number,
+		name: string,
+		county: string | null,
+		state: string,
+		lodging: number[],
+		meals: number,
+	): Destination => ({ zip, destinationId, name, county, state, fiscalYear: 2027, lodging, meals });
+	const flat = (rate: number) => Array(12).fill(rate) as number[];
+
+	it('makes one row per ZIP code, in ZIP order, with the lunch added and the year dropped', async () => {
 		const rows = toRows(await readZipFile(zipSample), lunch);
 
-		expect(rows.map((row) => [row.zip, row.destinationId])).toEqual([
-			['00501', 271],
-			['01011', 154],
-			['01011', 158], // a ZIP in two counties keeps both, by destination
-			['01054', 0],
-			['36542', 99],
-		]);
-		expect(JSON.stringify(rows[1])).toBe(
-			'{"zip":"01011","destinationId":154,"name":"Northampton","county":"Hampshire County, MA","state":"MA","lodging":[157,157,157,157,157,157,157,157,157,157,157,157],"meals":80,"lunch":22}',
+		expect(rows.map((row) => row.zip)).toEqual(['00501', '01011', '01054', '36542']);
+		expect(JSON.stringify(rows[0])).toBe(
+			'{"zip":"00501","destinationIds":[271],"name":"Riverhead / Ronkonkoma / Melville","county":"Suffolk County, NY","state":"NY","lodging":[163,163,163,163,163,163,163,163,163,163,163,163],"meals":86,"lunch":23}',
 		);
+	});
+
+	it('averages a ZIP code that GSA lists in two counties', async () => {
+		const [, row] = toRows(await readZipFile(zipSample), lunch);
+
+		// Northampton ($157, meals $80, lunch $22) and Springfield ($131, $74, $20).
+		expect(row).toEqual({
+			zip: '01011',
+			destinationIds: [154, 158],
+			name: 'Northampton / Springfield',
+			county: 'Hampshire County, MA / Hampden County, MA',
+			state: 'MA',
+			lodging: flat(144),
+			meals: 77,
+			lunch: 21,
+		});
+	});
+
+	it('averages month by month, counts every row equally, and keeps cents', () => {
+		const seasonal = [100, 100, 100, 100, 100, 100, 200, 100, 100, 100, 100, 100];
+		const [row] = toRows(
+			[
+				dest('02110', 7, 'Boston', 'Suffolk County, MA', 'MA', seasonal, 92),
+				dest('02110', 3, 'Burlington', 'Middlesex County, MA', 'MA', flat(110), 86),
+				dest('02110', 5, 'Standard Rate', null, 'MA', flat(130), 68),
+			],
+			lunch,
+		);
+
+		expect(row?.destinationIds).toEqual([3, 5, 7]); // in destination order
+		expect(row?.lodging[0]).toBe(113.33); // (110 + 130 + 100) / 3
+		expect(row?.lodging[6]).toBe(146.67); // July: (110 + 130 + 200) / 3
+		expect(row?.county).toBe('Middlesex County, MA / Suffolk County, MA'); // the standard rate has none
+		expect(row?.meals).toBe(82); // (86 + 68 + 92) / 3
+	});
+
+	it('lists both states for a ZIP code that crosses a state line', () => {
+		const [row] = toRows(
+			[
+				dest('06820', 1, 'Bridgeport', 'Fairfield County, CT', 'CT', flat(156), 86),
+				dest('06820', 2, 'Tarrytown', 'Westchester County, NY', 'NY', flat(168), 86),
+			],
+			lunch,
+		);
+
+		expect(row?.state).toBe('CT / NY');
+		expect(row?.lodging[0]).toBe(162);
 	});
 
 	it('writes the same bytes every time, one row per line', async () => {
@@ -144,7 +197,7 @@ describe('toRows', () => {
 		expect(formatRows(rows)).toBe(
 			formatRows(toRows([...(await readZipFile(zipSample))].reverse(), lunch)),
 		);
-		expect(formatRows(rows).split('\n')).toHaveLength(5 + 3);
+		expect(formatRows(rows).split('\n')).toHaveLength(4 + 3);
 	});
 });
 
@@ -262,23 +315,26 @@ describe('nextYear and yearsOnHand', () => {
 });
 
 describe('summarize', () => {
-	it('describes the year, the repeated ZIP codes, the standard rate, and the priciest place', async () => {
-		const rows = toRows(await readZipFile(zipSample), lunch);
-		const text = summarize(2027, rows, [], null);
+	it('describes the year, the averaged ZIP codes, the standard rate, and the priciest place', async () => {
+		const destinations = await readZipFile(zipSample);
+		const text = summarize(2027, destinations, toRows(destinations, lunch), lunch, [], null);
 
 		expect(text).toContain('## Per diem rates for FY2027');
-		expect(text).toContain('5 rows for 4 ZIP codes');
-		expect(text).toContain('1 ZIP codes appear more than once');
+		expect(text).toContain("5 rows in GSA's file became 4 ZIP codes");
+		expect(text).toContain('1 ZIP codes are listed under more than one destination');
+		expect(text).toContain('0 cross a state line');
+		expect(text).toContain('the average of its rows');
 		expect(text).toContain('standard rate, for places it lists no rate for: $113 a night and $68');
-		expect(text).toContain('| $74 | $20 | 2 |');
+		expect(text).toContain('| $74 | $20 | 2 |'); // Springfield and Gulf Shores
 		expect(text).toContain('| Gulf Shores, AL | $190 | July |');
 		expect(text).toContain('The year before is not in the repo.');
 	});
 
 	it('compares with the year before when it is there', async () => {
-		const rows = toRows(await readZipFile(zipSample), lunch);
+		const destinations = await readZipFile(zipSample);
+		const rows = toRows(destinations, lunch);
 		const before = rows.map((row) => ({ ...row, lodging: row.lodging.map((rate) => rate - 10) }));
-		const text = summarize(2027, rows, [], before);
+		const text = summarize(2027, destinations, rows, lunch, [], before);
 
 		expect(text).toContain('(+');
 		expect(text).toContain('Standard lodging: $113, against $103.');

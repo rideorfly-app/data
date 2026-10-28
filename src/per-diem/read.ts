@@ -27,14 +27,26 @@ export interface Destination {
 	meals: number;
 }
 
-/** One line of the file this job publishes. */
+/**
+ * One line of the file this job publishes: a ZIP code and its rates. A ZIP code
+ * GSA lists under more than one destination (it spans counties) gets the
+ * average of them, each counting equally, because there is no way to know where
+ * in the ZIP code a trip starts. Then `name`, `county`, and `state` list each
+ * of the destinations, joined with " / ".
+ */
 export interface PerDiemRow {
 	zip: string;
-	destinationId: number;
+
+	/** The GSA destinations averaged into this row: one, or more when the ZIP code spans counties. */
+	destinationIds: number[];
 	name: string;
 	county: string | null;
 	state: string;
+
+	/** Lodging per night in each calendar month, January first. */
 	lodging: number[];
+
+	/** The meals and incidentals rate for a full day. */
 	meals: number;
 
 	/** The lunch part of the meals rate, from GSA's breakdown. It stands in for a quick-serve meal. */
@@ -129,15 +141,50 @@ export async function readMealsTable(path: string): Promise<Map<number, number>>
 	return mealsTable(await readDocxTables(path));
 }
 
-/** The lines of the published file, in ZIP order. Run the checks first: a meals rate with no lunch becomes NaN. */
+/** Cents, since an average of three rates is not a whole dollar. */
+const mean = (values: readonly number[]) =>
+	Math.round((values.reduce((total, value) => total + value, 0) / values.length) * 100) / 100;
+
+/** The distinct values, in order, joined for display. */
+const joined = (values: readonly string[]) => [...new Set(values)].join(' / ');
+
+/**
+ * The lines of the published file, one per ZIP code, in ZIP order. A ZIP code in
+ * more than one destination is averaged (see `PerDiemRow`). Run the checks
+ * first: a meals rate with no lunch becomes NaN.
+ */
 export function toRows(
 	destinations: readonly Destination[],
 	lunchByTotal: ReadonlyMap<number, number>,
 ): PerDiemRow[] {
-	return destinations
-		.map(({ fiscalYear: _year, ...destination }) => ({
-			...destination,
-			lunch: lunchByTotal.get(destination.meals) ?? Number.NaN,
-		}))
-		.sort((a, b) => (a.zip < b.zip ? -1 : a.zip > b.zip ? 1 : a.destinationId - b.destinationId));
+	const groups = new Map<string, Destination[]>();
+
+	for (const destination of destinations) {
+		const group = groups.get(destination.zip) ?? [];
+
+		group.push(destination);
+		groups.set(destination.zip, group);
+	}
+
+	return [...groups]
+		.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+		.map(([zip, group]) => {
+			const listed = [...group].sort((a, b) => a.destinationId - b.destinationId);
+			const counties = listed.flatMap((destination) =>
+				destination.county ? [destination.county] : [],
+			);
+
+			return {
+				zip,
+				destinationIds: listed.map((destination) => destination.destinationId),
+				name: joined(listed.map((destination) => destination.name)),
+				county: counties.length > 0 ? joined(counties) : null,
+				state: joined(listed.map((destination) => destination.state)),
+				lodging: MONTHS.map((_, month) =>
+					mean(listed.map((destination) => destination.lodging[month] ?? Number.NaN)),
+				),
+				meals: mean(listed.map((destination) => destination.meals)),
+				lunch: mean(listed.map((destination) => lunchByTotal.get(destination.meals) ?? Number.NaN)),
+			};
+		});
 }

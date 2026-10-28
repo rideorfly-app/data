@@ -1,5 +1,5 @@
 import type { CheckResult } from '../flight-history/checks.ts';
-import type { PerDiemRow } from './read.ts';
+import type { Destination, PerDiemRow } from './read.ts';
 
 const MONTH_NAMES = [
 	'January',
@@ -16,33 +16,32 @@ const MONTH_NAMES = [
 	'December',
 ];
 
-const yearly = (row: PerDiemRow) => row.lodging.reduce((total, rate) => total + rate, 0) / 12;
+const yearly = (lodging: readonly number[]) =>
+	lodging.reduce((total, rate) => total + rate, 0) / 12;
 const average = (rows: readonly PerDiemRow[]) =>
-	rows.reduce((total, row) => total + yearly(row), 0) / rows.length;
+	rows.reduce((total, row) => total + yearly(row.lodging), 0) / rows.length;
+const count = (n: number) => n.toLocaleString('en-US');
 
 /**
- * The pull request's description: what's in the file, GSA's standard rate, the
- * priciest places, how the meals rates break down, and how the year compares
- * with the one before when that is in the repo.
+ * The pull request's description: what's in the file, how ZIP codes in more
+ * than one destination were averaged, GSA's standard rate, the meals rates, the
+ * priciest places, and how the year compares with the one before when that is
+ * in the repo. `destinations` are GSA's rows; `rows` are the published ones.
  */
 export function summarize(
 	fiscalYear: number,
+	destinations: readonly Destination[],
 	rows: readonly PerDiemRow[],
+	lunchByTotal: ReadonlyMap<number, number>,
 	checks: readonly CheckResult[],
 	previous: readonly PerDiemRow[] | null,
 ): string {
-	const zips = new Set(rows.map((row) => row.zip));
-	const inTwo = new Map<string, number>();
-
-	for (const row of rows) {
-		inTwo.set(row.zip, (inTwo.get(row.zip) ?? 0) + 1);
-	}
-
-	const standard = rows.find((row) => row.name === 'Standard Rate');
+	const averaged = rows.filter((row) => row.destinationIds.length > 1);
+	const standard = destinations.find((destination) => destination.name === 'Standard Rate');
 	const lines = [
 		`## Per diem rates for FY${fiscalYear}`,
 		'',
-		`${rows.length.toLocaleString('en-US')} rows for ${zips.size.toLocaleString('en-US')} ZIP codes in the Lower 48 and DC. ${[...inTwo.values()].filter((count) => count > 1).length.toLocaleString('en-US')} ZIP codes appear more than once, because they span counties with different rates; both rows are kept, as GSA lists them.`,
+		`${count(destinations.length)} rows in GSA's file became ${count(rows.length)} ZIP codes in the Lower 48 and DC. ${count(averaged.length)} ZIP codes are listed under more than one destination (they span counties, and ${count(averaged.filter((row) => row.state.includes('/')).length)} cross a state line); each of those is the average of its rows, every row counting equally, month by month.`,
 		'',
 	];
 
@@ -54,36 +53,33 @@ export function summarize(
 	}
 
 	lines.push(
-		'### Meals rates',
+		"### Meals rates in GSA's file",
 		'',
 		'| Meals and incidentals | Lunch | Rows |',
 		'| ---: | ---: | ---: |',
 	);
 
-	const tiers = new Map<number, { lunch: number; rows: number }>();
+	const tiers = new Map<number, number>();
 
-	for (const row of rows) {
-		const tier = tiers.get(row.meals) ?? { lunch: row.lunch, rows: 0 };
-
-		tier.rows++;
-		tiers.set(row.meals, tier);
+	for (const destination of destinations) {
+		tiers.set(destination.meals, (tiers.get(destination.meals) ?? 0) + 1);
 	}
 
-	for (const [meals, tier] of [...tiers].sort(([a], [b]) => a - b)) {
-		lines.push(`| $${meals} | $${tier.lunch} | ${tier.rows.toLocaleString('en-US')} |`);
+	for (const [meals, rowCount] of [...tiers].sort(([a], [b]) => a - b)) {
+		lines.push(`| $${meals} | $${lunchByTotal.get(meals) ?? '?'} | ${count(rowCount)} |`);
 	}
 
 	const peaks = new Map<string, { peak: number; month: string; state: string }>();
 
-	for (const row of rows) {
-		const peak = Math.max(...row.lodging);
-		const known = peaks.get(row.name);
+	for (const destination of destinations) {
+		const peak = Math.max(...destination.lodging);
+		const known = peaks.get(destination.name);
 
 		if (!known || peak > known.peak) {
-			peaks.set(row.name, {
+			peaks.set(destination.name, {
 				peak,
-				month: MONTH_NAMES[row.lodging.indexOf(peak)] ?? '',
-				state: row.state,
+				month: MONTH_NAMES[destination.lodging.indexOf(peak)] ?? '',
+				state: destination.state,
 			});
 		}
 	}
@@ -105,11 +101,12 @@ export function summarize(
 	if (previous && previous.length > 0) {
 		const now = average(rows);
 		const before = average(previous);
-		const before_standard = previous.find((row) => row.name === 'Standard Rate');
 
 		lines.push(
-			`Average yearly lodging per row: $${now.toFixed(2)}, against $${before.toFixed(2)} (${now >= before ? '+' : '−'}${(Math.abs(now / before - 1) * 100).toFixed(1)}%). Rows: ${rows.length.toLocaleString('en-US')}, against ${previous.length.toLocaleString('en-US')}.`,
+			`Average yearly lodging per ZIP code: $${now.toFixed(2)}, against $${before.toFixed(2)} (${now >= before ? '+' : '−'}${(Math.abs(now / before - 1) * 100).toFixed(1)}%). ZIP codes: ${count(rows.length)}, against ${count(previous.length)}.`,
 		);
+
+		const before_standard = previous.find((row) => row.name === 'Standard Rate');
 
 		if (standard && before_standard) {
 			lines.push(
@@ -124,7 +121,9 @@ export function summarize(
 	lines.push('', '### Checks', '');
 
 	for (const check of checks) {
-		lines.push(`- ${check.passed ? '✅' : '❌'} ${check.name}`);
+		lines.push(
+			`- ${check.passed ? '✅' : '❌'} ${check.name}${check.detail ? ` (${check.detail})` : ''}`,
+		);
 	}
 
 	return `${lines.join('\n')}\n`;

@@ -116,7 +116,14 @@ const job: Job = {
 		return {
 			path: `${folder}/${update}.json`,
 			contents: formatRows(rows),
-			summary: summarize(fiscalYear, rows, checks, await load(`FY${fiscalYear - 1}`)),
+			summary: summarize(
+				fiscalYear,
+				destinations,
+				rows,
+				lunchByTotal,
+				checks,
+				await load(`FY${fiscalYear - 1}`),
+			),
 		};
 	},
 };
