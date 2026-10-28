@@ -141,13 +141,19 @@ export async function openPull(
 }
 
 /**
- * Starts a workflow on a branch. GitHub doesn't run other workflows for a pull
- * request opened with a workflow's own token, but it does allow this one call.
+ * Starts a workflow on a branch, with inputs if it takes any. GitHub doesn't run
+ * other workflows for a pull request opened with a workflow's own token, but it
+ * does allow this one call. `repo` names another repository when the workflow
+ * lives elsewhere (the token must be allowed to start workflows there).
  */
 export async function dispatchWorkflow(
 	github: GitHub,
 	workflow: string,
 	ref: string,
+	inputs?: Record<string, string>,
 ): Promise<void> {
-	await call(github, 'POST', `/actions/workflows/${workflow}/dispatches`, { ref });
+	await call(github, 'POST', `/actions/workflows/${workflow}/dispatches`, {
+		ref,
+		...(inputs ? { inputs } : {}),
+	});
 }

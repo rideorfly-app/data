@@ -60,3 +60,22 @@ jobs:
           gh release upload "$RELEASE" "$RUNNER_TEMP/manifest.json"
           gh release edit "$RELEASE" --draft=false
           echo "Released $RELEASE" >> "$GITHUB_STEP_SUMMARY"
+
+      # Tell the organization's Discussions about a new accuracy report. The
+      # built-in token can't start a workflow in another repo, so this uses
+      # ANNOUNCE_TOKEN, a token that can start workflows in `.github` and do
+      # nothing else. It does nothing when this release has no new report.
+      - name: Announce a new accuracy report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANNOUNCE_TOKEN: ${{ secrets.ANNOUNCE_TOKEN }}
+          ANNOUNCE_REPO: ${{ vars.ANNOUNCE_REPO }}
+          RELEASE: ${{ steps.name.outputs.name }}
+        run: |
+          previous="$(gh release list --exclude-drafts --limit 5 --json tagName --jq '.[].tagName' | grep -vx "$RELEASE" | head -n 1 || true)"
+          before="-"
+          if [[ -n "$previous" ]]; then
+            gh release download "$previous" --pattern manifest.json --output "$RUNNER_TEMP/previous.json"
+            before="$RUNNER_TEMP/previous.json"
+          fi
+          node src/announce.ts "$RUNNER_TEMP/manifest.json" "$before" "$RELEASE" | tee -a "$GITHUB_STEP_SUMMARY"

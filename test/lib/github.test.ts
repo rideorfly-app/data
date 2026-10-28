@@ -197,6 +197,15 @@ describe('openPull', () => {
 });
 
 describe('dispatchWorkflow', () => {
+	it('sends inputs to a workflow that takes them', async () => {
+		const { github, requests } = fake({
+			'POST /actions/workflows/announce.yml/dispatches': { status: 204 },
+		});
+
+		await dispatchWorkflow(github, 'announce.yml', 'master', { title: 'T', body: 'B\nC' });
+		expect(requests[0]?.body).toEqual({ ref: 'master', inputs: { title: 'T', body: 'B\nC' } });
+	});
+
 	it('starts a workflow on a branch', async () => {
 		const { github, requests } = fake({
 			'POST /actions/workflows/tests.yml/dispatches': { status: 204 },
