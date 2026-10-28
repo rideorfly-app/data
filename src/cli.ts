@@ -4,6 +4,12 @@
 //   npm run job -- flight-history --month 2026-08
 //   npm run job -- flight-history --from 2022-01 --to 2026-08
 //   npm run job -- gas-prices --update 2026-10-26     (weekly and yearly jobs name an update)
+//
+// The workflows use three more options:
+//   node src/cli.ts --list                            the jobs, as a JSON list
+//   node src/cli.ts gas-prices --next                 prints only the next update's name (nothing if up to date)
+//   node src/cli.ts gas-prices --update 2026-10-26 --summary-file summary.md
+//                                                     also writes the pull request text to a file
 
 import { mkdir, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -24,6 +30,9 @@ const { values, positionals } = parseArgs({
 	allowPositionals: true,
 	options: {
 		check: { type: 'boolean' },
+		list: { type: 'boolean' },
+		next: { type: 'boolean' },
+		'summary-file': { type: 'string' },
 		month: { type: 'string' },
 		from: { type: 'string' },
 		to: { type: 'string' },
@@ -34,6 +43,11 @@ const { values, positionals } = parseArgs({
 const [name] = positionals;
 const names = await jobNames();
 
+if (values.list) {
+	console.log(JSON.stringify(names.sort()));
+	process.exit(0);
+}
+
 if (!name || !names.includes(name)) {
 	console.error(
 		`Usage: npm run job -- JOB [--check | --month YYYY-MM | --from YYYY-MM --to YYYY-MM | --update ID]`,
@@ -43,6 +57,12 @@ if (!name || !names.includes(name)) {
 }
 
 const job: Job = (await import(`./${name}/index.ts`)).default;
+
+if (values.next) {
+	const { next } = await job.check();
+	console.log(next ?? '');
+	process.exit(0);
+}
 
 if (values.check) {
 	const { note } = await job.check();
@@ -73,6 +93,10 @@ for (const update of updates) {
 	await writeFile(path, build.contents);
 
 	console.log(`${build.path}`);
+
+	if (values['summary-file'] && updates.length === 1) {
+		await writeFile(values['summary-file'], build.summary);
+	}
 	if (updates.length === 1) {
 		console.log(`\n${build.summary}`);
 	}
