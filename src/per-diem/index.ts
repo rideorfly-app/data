@@ -57,12 +57,30 @@ async function listing(): Promise<GsaFiles> {
 	return findFiles(await response.text(), LISTING_URL);
 }
 
+/**
+ * The file name to keep a download under: the last part of the link's path,
+ * with `%20` and the like decoded. A link is untrusted text, so a name that
+ * could lead anywhere but the cache folder (a slash, a backslash, `..`, or
+ * nothing at all) is refused instead of cleaned up.
+ */
+export function cacheName(url: string): string {
+	let name: string;
+
+	try {
+		name = decodeURIComponent(new URL(url).pathname.split('/').pop() ?? '');
+	} catch {
+		throw new Error(`Can't tell what file ${url} is. Refusing to save it.`);
+	}
+
+	if (name === '' || name === '.' || name === '..' || /[\\/\0]/.test(name)) {
+		throw new Error(`${url} doesn't end in a plain file name, so it won't be saved.`);
+	}
+
+	return name;
+}
+
 /** A GSA file, kept in `.cache/` under its own name so a reissued file (new validation date) is fetched again. */
-const fetchFile = (url: string) =>
-	download(
-		url,
-		join(root, '.cache', 'per-diem', decodeURIComponent(url.split('/').pop() ?? 'file')),
-	);
+const fetchFile = (url: string) => download(url, join(root, '.cache', 'per-diem', cacheName(url)));
 
 /** A year already in the repo, for the pull request's comparison, or null. */
 async function load(year: string): Promise<PerDiemRow[] | null> {
