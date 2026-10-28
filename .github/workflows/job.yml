@@ -1,0 +1,112 @@
+name: Job
+
+# Runs one dataset's job: asks the source whether there is anything new, makes
+# the file, runs the tests, and opens a pull request for the owner to review.
+# daily.yml calls this once per dataset; the Run workflow button (with a
+# dropdown) runs one by hand, for example to retry one that failed.
+
+on:
+  workflow_call:
+    inputs:
+      job:
+        type: string
+        required: true
+      update:
+        type: string
+        required: false
+        default: ''
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Which dataset
+        type: choice
+        required: true
+        options:
+          - accuracy
+          - airports
+          - flight-history
+          - gas-prices
+          - hand-kept
+          - per-diem
+          - places
+          - road-safety
+      update:
+        description: Which update (a month, week, or year). Leave empty for the next one the source has.
+        type: string
+        required: false
+        default: ''
+
+# One run per dataset at a time, so a retry by hand can't collide with the daily run.
+concurrency:
+  group: job-${{ inputs.job }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  run:
+    name: ${{ inputs.job }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: master
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Installing also builds the engine it pins, straight from GitHub.
+      - run: npm ci
+
+      # The inputs go in through the environment, never pasted into the script.
+      - name: Is there anything new?
+        id: next
+        env:
+          JOB: ${{ inputs.job }}
+          UPDATE: ${{ inputs.update }}
+        run: |
+          next="${UPDATE:-$(npm run --silent job -- "$JOB" --next)}"
+          if [[ -n "$next" && ! "$next" =~ ^[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::\"$next\" isn't a month, week, or year."
+            exit 1
+          fi
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+          if [[ -z "$next" ]]; then
+            echo "$(npm run --silent job -- "$JOB" --check)" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Tests
+        if: steps.next.outputs.next != ''
+        run: npm run verify
+
+      - name: Make the file
+        id: make
+        if: steps.next.outputs.next != ''
+        env:
+          JOB: ${{ inputs.job }}
+          NEXT: ${{ steps.next.outputs.next }}
+        run: |
+          path="$(npm run --silent job -- "$JOB" --update "$NEXT" --summary-file "$RUNNER_TEMP/summary.md" | head -n 1)"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
+
+      # The commit is made through GitHub's API with this run's own token, which
+      # GitHub signs, so it passes master's signed-commits rule.
+      - name: Open the pull request
+        if: steps.next.outputs.next != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_REVIEWER: ${{ vars.PR_REVIEWER }}
+          JOB: ${{ inputs.job }}
+          NEXT: ${{ steps.next.outputs.next }}
+          FILE: ${{ steps.make.outputs.path }}
+        run: |
+          node src/pr.ts \
+            --branch "update/$JOB/$NEXT" \
+            --title "$JOB: $NEXT" \
+            --body-file "$RUNNER_TEMP/summary.md" \
+            --file "$FILE" | tee -a "$GITHUB_STEP_SUMMARY"

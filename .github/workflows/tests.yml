@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [master]
+  # job.yml starts this on each update's branch, because GitHub doesn't run
+  # tests for a pull request opened by a workflow.
+  workflow_dispatch:
 
 permissions:
   contents: read
