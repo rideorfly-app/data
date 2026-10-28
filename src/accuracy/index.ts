@@ -6,6 +6,7 @@ import { download } from '../lib/download.ts';
 import type { Build, Job } from '../lib/job.ts';
 import { addMonths } from '../lib/months.ts';
 import { formatRows } from '../lib/write.ts';
+import { checkedEngine, type InstalledPackage } from './engine.ts';
 import { routeDays } from './flights.ts';
 import { type Index, loadIndex } from './history.ts';
 import { buildReport } from './report.ts';
@@ -24,14 +25,24 @@ const loadHistory = () => {
 	return history;
 };
 
-/** The engine version the estimates come from: the commit `data` pins until the engine is on npm, the version after. */
+/**
+ * The engine the report names: the commit `data` pins until the engine is on
+ * npm, the version after. Throws if npm installed some other engine, such as a
+ * local copy linked in for testing, so the name is always true.
+ */
 async function engineVersion(): Promise<string> {
 	const { dependencies } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as {
 		dependencies: Record<string, string>;
 	};
-	const pinned = dependencies['@rideorfly/engine'] ?? 'unknown';
+	const record = await readFile(join(root, 'node_modules', '.package-lock.json'), 'utf8').catch(
+		() => '{}',
+	);
+	const { packages } = JSON.parse(record) as { packages?: Record<string, InstalledPackage> };
 
-	return pinned.includes('#') ? (pinned.split('#')[1] ?? pinned).slice(0, 7) : pinned;
+	return checkedEngine(
+		dependencies['@rideorfly/engine'] ?? 'unknown',
+		packages?.['node_modules/@rideorfly/engine'],
+	);
 }
 
 const job: Job = {
@@ -56,13 +67,15 @@ const job: Job = {
 	},
 
 	async build(month): Promise<Build> {
+		// First, so a wrong engine stops the run before any download or work.
+		const engine = await engineVersion();
 		const index = await loadHistory();
 		const zip = await download(
 			sourceUrl(month),
 			join(root, '.cache', 'flight-history', `${month}.zip`),
 		);
 		const days = await routeDays(readZippedCsv(zip), month);
-		const rows = buildReport(index, month, days, await engineVersion());
+		const rows = buildReport(index, month, days, engine);
 
 		return {
 			path: `${folder}/${month}.json`,
