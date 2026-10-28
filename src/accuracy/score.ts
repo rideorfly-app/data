@@ -29,7 +29,11 @@ export interface RouteEstimate {
 	/** The route's real figures for the month. */
 	actual: FlightMonth;
 
-	/** True when the route had fewer flights in the newest month known than the engine's cutoff, so its airports count for more than the route does. */
+	/**
+	 * A reporting group: true when the route had fewer flights in the newest month
+	 * known than the engine's cutoff. The engine's own blend weight comes from the
+	 * route's flights in the same month of past years, so the two can differ.
+	 */
 	thin: boolean;
 
 	/** What the "average" method's figures rested on: the route's own past years, those blended with its airports', or only its newest month. */
