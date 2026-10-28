@@ -11,13 +11,14 @@ Public numbers from public sources, checked every day and published only after a
 | Dataset | Source | Updated |
 | --- | --- | --- |
 | Flight history: delays, cancellations and diversions, and scheduled flight times by route, airport, and nationwide (flights within the Lower 48 and DC) | DOT on-time records | Monthly, about two months behind |
-| Accuracy report: how close the engine's flight-time estimates came to the flights that actually flew | DOT records and the published engine | Monthly |
+| Accuracy report: how close the engine's flight-time and delay estimates came to the flights that actually flew | DOT records and the published engine | Monthly |
 | Gas prices by region | EIA | Weekly |
 | Hotel and meal rates | GSA per diem | Yearly |
-| Road safety by state | NHTSA | Yearly |
-| Winter passes on major highways | USGS and Census | Yearly |
+| Road safety by state | NHTSA and FHWA | Yearly |
+| Winter passes on major highways | A hand-kept table, drafted from USGS data (estimates) | Reviewed yearly |
 | Airports | FAA commercial-service list | Yearly |
 | Places and ZIP codes | Census | Yearly |
+| Time zone of each place and ZIP code area | DOT | Yearly |
 | Rental rates by region | A hand-kept table (estimates) | A few times a year |
 | Airport parking | A hand-kept table (estimates) | Yearly |
 
@@ -25,7 +26,7 @@ Public numbers from public sources, checked every day and published only after a
 
 1. **Checked daily.** A workflow checks each source every day. When one has new data, it processes it and opens a pull request with the new files, one pull request per update.
 2. **Reviewed by a person.** Each pull request is reviewed and merged by hand.
-3. **Released by hand.** Each release is named for its date, such as `2026-10-14`, and comes with a manifest listing every file and its checksum. Releases are immutable, so a release's files can never change. Mistakes are fixed in a later release, and the history shows both.
+3. **Released by hand.** Each release is named for its date, such as `2026-10-14`, and comes with a manifest listing every file and its checksum. Releases are immutable, so a release's files can never change. Mistakes are fixed in a later release, and the history shows both. A release that carries a new accuracy report is also announced in the organization's GitHub Discussions.
 
 **About the flight history.** DOT's on-time records come from the airlines that report to DOT, which are the larger U.S. carriers, so they don't include every flight. Each row covers flights between the Lower 48 states and DC, a flight counts toward `disruptShare` if it was cancelled or diverted, and `delayShare` counts flights that flew and arrived 15 minutes or more late (DOT's own rule).
 
@@ -35,6 +36,6 @@ Anyone can rerun a script on the same source data and get the same file. The sco
 
 - **Scripts** (the code, workflows, and tests): Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 - **Data files** (everything the scripts produce, and the hand-kept tables): Creative Commons Attribution 4.0 International. See [LICENSE-DATA](LICENSE-DATA). You can reuse them, including commercially, as long as you credit Ride or Fly.
-- **Sources:** the DOT, USGS, Census, NHTSA, GSA, and EIA data is in the public domain.
+- **Sources:** the DOT, FAA, USGS, Census, NHTSA, FHWA, GSA, and EIA data is in the public domain, and so is OurAirports' list of airport coordinates.
 
 The licenses cover the code and data, not the brand. The "Ride or Fly" name and logo are trademarks and aren't licensed for reuse.
