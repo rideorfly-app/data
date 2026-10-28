@@ -15,6 +15,9 @@ export const EXPECTED = {
 export interface CheckResult {
 	name: string;
 	passed: boolean;
+
+	/** When a check fails: a few of the rows that failed it, to save a hunt through the file. */
+	detail?: string;
 }
 
 /** How far short of its total a set of rows may fall, since a group with no flown flight gets no row. */

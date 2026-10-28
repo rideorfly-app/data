@@ -27,3 +27,14 @@ export async function* readZippedLines(zipPath: string, member: string): AsyncGe
 		);
 	}
 }
+
+/** A whole text file inside a zip, for small ones such as the XML parts of a spreadsheet. */
+export async function readZippedText(zipPath: string, member: string): Promise<string> {
+	let text = '';
+
+	for await (const line of readZippedLines(zipPath, member)) {
+		text += `${line}\n`;
+	}
+
+	return text;
+}

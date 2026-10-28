@@ -34,15 +34,16 @@ The owner is a web developer who builds custom WordPress themes and plugins. Inf
 | `LICENSE`, `NOTICE` | Apache 2.0, for the scripts |
 | `LICENSE-DATA` | CC BY 4.0, for the data files |
 | `src/cli.ts` | Runs a job locally; jobs are the folders in `src/` other than `lib/` |
-| `src/lib/` | Shared helpers: `job.ts` (a job's shape), `download.ts`, `zip.ts` (reads a text file inside a zip a line at a time), `csv.ts` (reads a zipped CSV), `months.ts`, `write.ts` (the file format) |
+| `src/lib/` | Shared helpers: `job.ts` (a job's shape), `download.ts`, `zip.ts` (reads a text file inside a zip, by line or whole), `csv.ts` (reads a zipped CSV), `xlsx.ts` (reads a spreadsheet), `docx.ts` (reads the tables in a Word file), `xml.ts`, `months.ts`, `write.ts` (the file format) |
 | `src/flight-history/` | The flight-history job: `aggregate.ts` (DOT records to rows), `checks.ts` (sanity ranges), `summary.ts` (pull request text), `index.ts` (the job) |
 | `src/accuracy/` | The accuracy report job: `history.ts` (reads the flight-history files, and only the months up to a date), `flights.ts` (a month's flights by route and day), `score.ts` (what the engine would have estimated, and how close it came), `report.ts` (the file's rows), `engine.ts` (checks that the installed engine is the one `package.json` pins), `summary.ts` (pull request text), `rollup.ts` (combines months into one table), `index.ts` (the job) |
 | `src/gas-prices/` | The weekly gas-prices job: `series.ts` (which of EIA's series, and reading its file), `checks.ts` (sanity ranges), `summary.ts` (pull request text), `index.ts` (the job) |
-| `test/` | Vitest tests; `test/flight-history/` has a made-up zipped CSV of nine flights, and `test/accuracy/` a small made-up history, and `test/gas-prices/` a made-up copy of EIA's file (`PET.txt`, zipped) |
+| `src/per-diem/` | The yearly per diem job: `links.ts` (finds GSA's files on its listing page), `read.ts` (reads the ZIP-code spreadsheet and the meals table), `checks.ts` (sanity ranges), `summary.ts` (pull request text), `index.ts` (the job) |
+| `test/` | Vitest tests; `test/flight-history/` has a made-up zipped CSV of nine flights, and `test/accuracy/` a small made-up history, `test/gas-prices/` a made-up copy of EIA's file (`PET.txt`, zipped), `test/lib/` a tiny spreadsheet and Word file for the readers, and `test/per-diem/` a miniature of GSA's ZIP-code file and files page |
 | `datasets/` | Everything published (CC BY 4.0), one row per line, including the hand-kept tables, one file each, edited in place. Empty on `init` |
 | `.github/workflows/tests.yml` | Lint, types, and tests on pushes and pull requests |
 
-Not built yet ("Jobs, workflows, and layout" in the plan): the jobs for per diem, road safety, winter passes, airports, and places and ZIPs, the two hand-kept tables (rental rates, airport parking), the manifest, and the `daily.yml` (runs every job), `job.yml` (one job; also run by hand), and `release.yml` (the Release data button) workflows.
+Not built yet ("Jobs, workflows, and layout" in the plan): the jobs for road safety, winter passes, airports, and places and ZIPs, the two hand-kept tables (rental rates, airport parking), the manifest, and the `daily.yml` (runs every job), `job.yml` (one job; also run by hand), and `release.yml` (the Release data button) workflows.
 
 ## Commands
 
@@ -61,6 +62,8 @@ Not built yet ("Jobs, workflows, and layout" in the plan): the jobs for per diem
 | Combine accuracy reports | `node src/accuracy/rollup.ts 2023-01 2025-12` |
 | Is there a new week of gas prices? | `npm run job -- gas-prices --check` |
 | Make one week of gas prices (the Monday) | `npm run job -- gas-prices --update 2026-10-26` |
+| Is there a new year of per diem rates? | `npm run job -- per-diem --check` |
+| Make a year of per diem rates | `npm run job -- per-diem --update FY2027` |
 
 Downloads are cached in `.cache/` (ignored by Git). Node runs the TypeScript directly, so there's no build step; imports use `.ts` extensions.
 
@@ -115,3 +118,14 @@ Run on the week of 2026-10-26 (and 2026-10-19), against EIA's live bulk file (ab
 - **Same bytes on a second run.** The EIA copy changes daily, but a past week's prices don't.
 - **No key.** EIA's own weekly page offers only an old binary spreadsheet (`.xls`), and its API needs a key. The bulk file (`eia.gov/opendata/bulk/PET.zip`, JSON lines) needs neither, and has every region the engine uses. `west-coast` is EIA's "West Coast except California" series, because the engine puts California in its own region (`california`) and Arizona, Nevada, Oregon, and Washington in `west-coast`.
 - **Bad input is refused:** a Tuesday, or any date EIA has no price for, writes nothing and says why.
+
+## How the per-diem job was checked
+
+Run on FY2027 (October 2026 to September 2027), against GSA's live files:
+
+- **Every row rebuilt independently.** Separate Python code read GSA's ZIP-code spreadsheet and the meals breakdown and rebuilt all 42,358 rows (ZIP, destination, name, county, state, 12 months of lodging in calendar order, meals, lunch). Zero rows differ.
+- **Cross-checked against GSA's other file.** The per-destination rates file (a different spreadsheet) agrees on lodging and meals for all 146 destinations that have one flat rate all year.
+- **Same bytes on a second run.**
+- **A ZIP code can appear twice.** 1,839 of the 40,426 ZIP codes span two counties with different rates (01011 is $157 a night under Northampton and $131 under Springfield; the median gap is about $25), so both rows are kept, as GSA lists them. Which one to use for a trip is the app's call and is an open question in the plan.
+- **GSA's files change.** The file names carry validation dates, so the job reads the files page for its links. FY2026's header spells `Zip` where FY2027's says `ZIP` (the job ignores case), and FY2026 has 13 rows with a blank State (01470, 57716, 90233 and others). The job refuses that file and names the rows rather than guessing; FY2026 is not needed, so it is not built.
+- **Lodging runs from $113 (the standard rate) to $499 (Park City, in January).** Lunch comes from GSA's meals breakdown: $19, $20, $22, $23, or $26 for the five meals rates ($68 to $92).
