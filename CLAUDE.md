@@ -83,7 +83,7 @@ The job (`src/accuracy/`) was run for every month from January 2023 to December 
 - **An estimate recomputed independently.** The `average` method, rebuilt in Python from the flight-history files for November 2024 at 3 months ahead, gives the job's numbers exactly: 5,082 routes, 547,204 flights, an average delay off by 5.99 minutes, bias +2.09, delayed-share off by 0.0499, disruption share off by 0.0083.
 - **No peeking.** A test checks that every estimate starts from the newest month DOT would have published by then, and fails if the history returned later months.
 - **The engine label is true.** A report's `engine` line comes from the pin in `package.json`, so the job refuses to run unless npm actually installed that engine (it reads npm's record, `node_modules/.package-lock.json`). A local copy linked in for testing, or a different commit, stops the run with a message to run `npm install`. This closes a gap found on 2026-10-28, when reports made with a linked engine carried the old pin's name.
-- **Local history needed two exceptions.** 2020-04, 2020-05, and 2020-06 fail the flight-history checks (the pandemic collapse in flights); the engine skips 2020 anyway. 2017 to 2019 have fewer than 4,000 routes a month (3,698 to 3,885 in 2017), under the floor in `checks.ts`, which was set from three recent months. Those months were built with a scratch script that waived only that floor. The floor is for the backfill from 2021; it needs no change for this.
+- **Local history needed two exceptions.** 2020-04, 2020-05, and 2020-06 fail the flight-history checks (the pandemic collapse in flights); the engine skips 2020 anyway. 2012 to 2017 have fewer than 4,000 routes a month (3,609 to 4,031, and every month but 2013-12 is under), below the floor in `checks.ts`, which was set from three recent months. From January 2018 the count is about 4,900 to 5,600 (the reason for the jump was not checked). Those months were built with a scratch script that waived only that floor. The floor is for the backfill from 2021; it needs no change for this.
 
 What the 36 months showed (the rolled-up table is `node src/accuracy/rollup.ts 2023-01 2025-12`):
 
@@ -92,3 +92,14 @@ What the 36 months showed (the rolled-up table is `node src/accuracy/rollup.ts 2
 - **It runs about 2 minutes optimistic** (bias −2.1), because delays have crept up and the older years in the average pull it down. The nudge would halve that but costs accuracy elsewhere. Not fixed.
 - **Flight times:** against the day's typical (median) flight, `average` reads about 10 minutes long: 37% of route-days within 10 minutes, 65% within 15%. The other two methods read 11 minutes long, with 35 to 36% within 10 minutes and 60 to 62% within 15%. About half of the gap is the estimate aiming at the average flight, which late flights pull above the typical one: against the day's average flight the median error is about +4.6 minutes, and 40% are within 10 minutes. The owner decided "the average flight, bad days included" is the right thing to plan around.
 - **Coverage:** in November 2024, 249 of 5,331 routes (3,687 flights) had no record in the newest month and would have used typical figures. Across the 36 months, 0.37% of flights were on routes with no past record of the month (mostly new routes), which start from their newest month and are off by about 17 minutes.
+
+A second check, on years not used to choose the method: flight history was built back to January 2012 (local and uncommitted, 166 months in all) and the unchanged engine was run on 2017 to 2019 and 2022 (48 more reports). `average` was best again in each of those four years, at 3 and 6 months ahead. Average delay off by per route, in minutes, 3 months ahead:
+
+| Years | `average` | `last-year` | `newest` |
+| --- | ---: | ---: | ---: |
+| 2017 to 2019 | 6.3 | 8.0 | 8.7 |
+| 2022 | 7.4 | 10.3 | 9.6 |
+| 2023 to 2025 (the first run) | 7.5 | 9.5 | 11.2 |
+
+- **The optimistic lean depends on the era.** `average`'s bias was +0.05 minutes in 2017 to 2019, when delays were steady, and -2.8 in 2022 and -2.1 in 2023 to 2025, as delays rose after the pandemic. A straight average runs low whenever delays are rising.
+- **Two cautions.** Route counts jump in January 2018, so rows from before then may not describe quite the same set of flights as rows after; the 2018 and 2019 estimates straddle the change, and `average` still won. And the 2022 estimates average in 2021, a pandemic-recovery year.
