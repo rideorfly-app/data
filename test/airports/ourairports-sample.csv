@@ -1,0 +1,12 @@
+id,ident,type,name,latitude_deg,longitude_deg,elevation_ft,continent,iso_country,iso_region,municipality,scheduled_service,icao_code,iata_code,gps_code,local_code,home_link,wikipedia_link,keywords
+1,KATL,large_airport,Hartsfield Jackson Atlanta International Airport,33.6367,-84.428101,100,NA,US,US-GA,Town,yes,,ATL,KATL,ATL,,,
+2,K61B,small_airport,Boulder City Municipal Airport,35.947201,-114.858803,100,NA,US,US-NV,Town,no,,BLD,K61B,BVU,,,
+3,PABG,small_airport,Beluga Airport,61.1721992493,-151.044006348,100,NA,US,US-AK,Town,no,,BVU,PABG,BLG,,,
+4,KDCA,large_airport,Ronald Reagan Washington National Airport,38.8521,-77.0377,100,NA,US,US-DC,Town,yes,,DCA,KDCA,DCA,,,
+5,KFHR,small_airport,Friday Harbor Airport,48.5219,-123.0243,100,NA,US,US-WA,Town,no,,FRD,KFHR,FHR,,,
+6,KAMB,small_airport,"Ambiguous, California Field",37.5,-122.0,100,NA,US,US-CA,Town,no,,AMB,KAMB,AM1,,,
+7,KAM2,small_airport,Ambiguous Oregon Field,44.0,-123.0,100,NA,US,US-OR,Town,no,,,KAM2,AMB,,,
+8,TX01,small_airport,Tie Private Strip,31.0,-97.0,100,NA,US,US-TX,Town,no,,,TX01,TIE,,,
+9,KTIE,medium_airport,Tie Regional Airport,31.5,-97.5,100,NA,US,US-TX,Town,yes,,TIE,KTIE,,,,
+10,KZZC,closed,Closed Field,30.0,-98.0,100,NA,US,US-TX,Town,no,,ZZZ,KZZC,ZZZ,,,
+11,CYVR,large_airport,Vancouver International Airport,49.1947,-123.184,100,NA,CA,CA-BC,Town,yes,,YVR,CYVR,,,,

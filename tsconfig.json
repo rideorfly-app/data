@@ -1,0 +1,26 @@
+{
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"lib": ["ES2022"],
+		"types": ["node"],
+
+		"strict": true,
+		"noUncheckedIndexedAccess": true,
+		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"verbatimModuleSyntax": true,
+		"isolatedModules": true,
+
+		// Node 24 runs the TypeScript directly by stripping the types, so the
+		// code can't use syntax that needs compiling (enums, namespaces).
+		"allowImportingTsExtensions": true,
+		"erasableSyntaxOnly": true,
+
+		"skipLibCheck": true,
+		"noEmit": true
+	},
+	"include": ["src", "test", "vitest.config.ts"]
+}

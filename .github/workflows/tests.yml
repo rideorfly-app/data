@@ -1,0 +1,39 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  # job.yml starts this on each update's branch, because GitHub doesn't run
+  # tests for a pull request opened by a workflow.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # Installing also builds the engine it pins, straight from GitHub.
+      - run: npm ci
+      - run: npm run check
+      - run: npm run typecheck
+      # The tests, plus which lines of the scripts they never reach, shown on
+      # the run's summary page. Coverage is a report for review, not a pass mark.
+      - name: Tests and coverage
+        run: |
+          npm run coverage
+          {
+            echo '### Coverage'
+            echo '```'
+            cat coverage/coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
