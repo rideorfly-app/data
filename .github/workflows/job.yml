@@ -30,7 +30,6 @@ on:
           - per-diem
           - places
           - road-safety
-          - time-zones
       update:
         description: Which update (a month, week, or year). Leave empty for the next one the source has.
         type: string

@@ -19,7 +19,6 @@ describe('the command line', () => {
 			'per-diem',
 			'places',
 			'road-safety',
-			'time-zones',
 		]);
 	});
 

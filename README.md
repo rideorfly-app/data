@@ -18,7 +18,6 @@ Public numbers from public sources, checked every day and published only after a
 | Winter passes on major highways | A hand-kept table, drafted from USGS data (estimates) | Reviewed yearly |
 | Airports | FAA commercial-service list | Yearly |
 | Places and ZIP codes | Census | Yearly |
-| Time zone of each place and ZIP code area | DOT | Yearly |
 | Rental rates by region | A hand-kept table (estimates) | A few times a year |
 | Airport parking | A hand-kept table (estimates) | Yearly |
 
