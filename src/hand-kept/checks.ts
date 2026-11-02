@@ -1,4 +1,6 @@
 import type { CheckResult } from '../flight-history/checks.ts';
+import { BORDER_STATES, type BorderRow, inState } from '../lib/borders.ts';
+import { signedArea } from '../lib/shapefile.ts';
 import { STATE_CODES } from '../lib/states.ts';
 
 /** One airport's cheapest daily parking rate, as kept by hand. */
@@ -239,6 +241,104 @@ export function checkPasses(rows: readonly PassRow[]): CheckResult[] {
 					isDate(row.reviewed) &&
 					typeof row.note === 'string',
 			),
+		},
+	];
+}
+
+export const BORDER_KEYS = ['state', 'name', 'source', 'polygons'] as const;
+
+/** Well-known inland places and the state each is in, to catch a name paired with the wrong shape. */
+export const BORDER_ANCHORS: readonly { state: string; place: string; lon: number; lat: number }[] =
+	[
+		{ state: 'CA', place: 'Fresno', lon: -119.79, lat: 36.74 },
+		{ state: 'CO', place: 'Denver', lon: -104.99, lat: 39.74 },
+		{ state: 'DC', place: 'the Capitol', lon: -77.0091, lat: 38.8899 },
+		{ state: 'FL', place: 'Orlando', lon: -81.38, lat: 28.54 },
+		{ state: 'GA', place: 'Atlanta', lon: -84.39, lat: 33.75 },
+		{ state: 'IL', place: 'Chicago', lon: -87.63, lat: 41.88 },
+		{ state: 'KY', place: 'Lexington', lon: -84.5, lat: 38.04 },
+		{ state: 'MA', place: 'Springfield', lon: -72.59, lat: 42.1 },
+		{ state: 'MD', place: 'Frederick', lon: -77.41, lat: 39.41 },
+		{ state: 'MI', place: 'Lansing', lon: -84.56, lat: 42.73 },
+		{ state: 'MN', place: 'Minneapolis', lon: -93.27, lat: 44.98 },
+		{ state: 'MT', place: 'Billings', lon: -108.5, lat: 45.78 },
+		{ state: 'NV', place: 'Las Vegas', lon: -115.14, lat: 36.17 },
+		{ state: 'NY', place: 'Syracuse', lon: -76.15, lat: 43.05 },
+		{ state: 'OK', place: 'Oklahoma City', lon: -97.52, lat: 35.47 },
+		{ state: 'TX', place: 'Houston', lon: -95.37, lat: 29.76 },
+		{ state: 'UT', place: 'Salt Lake City', lon: -111.89, lat: 40.76 },
+		{ state: 'VA', place: 'Richmond', lon: -77.44, lat: 37.54 },
+		{ state: 'WA', place: 'Spokane', lon: -117.43, lat: 47.66 },
+		{ state: 'WV', place: 'Charleston', lon: -81.63, lat: 38.35 },
+	];
+
+const isPoint = (point: unknown): boolean =>
+	Array.isArray(point) &&
+	point.length === 2 &&
+	typeof point[0] === 'number' &&
+	typeof point[1] === 'number' &&
+	// The Lower 48 and DC, with room to spare.
+	point[0] >= -125 &&
+	point[0] <= -66 &&
+	point[1] >= 24 &&
+	point[1] <= 50;
+
+const isClosedRing = (ring: unknown): boolean =>
+	Array.isArray(ring) &&
+	ring.length >= 4 &&
+	ring.every(isPoint) &&
+	JSON.stringify(ring[0]) === JSON.stringify(ring[ring.length - 1]);
+
+/**
+ * Checks the state outlines: one row for each of the 49 states, drawn as closed rings in the
+ * right directions (outsides clockwise, holes counterclockwise), with well-known cities inside
+ * the states they belong to. Nothing here fetches anything: it only reads the file.
+ */
+export function checkBorders(rows: readonly BorderRow[]): CheckResult[] {
+	const polygons = rows.flatMap((row) => (Array.isArray(row.polygons) ? row.polygons : []));
+	const rings = polygons.flatMap((polygon) => (Array.isArray(polygon) ? polygon : []));
+
+	return [
+		{
+			name: 'Every row has exactly the expected keys, in order',
+			passed: rows.every((row) => hasKeys(row, BORDER_KEYS)),
+		},
+		{
+			name: 'There is exactly one row for each of the 49 states and DC, sorted by code',
+			passed:
+				rows.length === BORDER_STATES.length &&
+				rows.every((row, i) => row.state === BORDER_STATES[i]),
+		},
+		{
+			name: 'Every row names its state and its source link',
+			passed: rows.every(
+				(row) => typeof row.name === 'string' && row.name !== '' && isLink(row.source),
+			),
+		},
+		{
+			name: 'Every state has at least one polygon, and every ring is closed, inside the Lower 48',
+			passed:
+				rows.every((row) => Array.isArray(row.polygons) && row.polygons.length > 0) &&
+				rings.every(isClosedRing),
+		},
+		{
+			name: 'Outsides run clockwise and holes counterclockwise',
+			passed: polygons.every(
+				([outside, ...holes]) =>
+					outside !== undefined &&
+					signedArea(outside) < 0 &&
+					holes.every((hole) => signedArea(hole) > 0),
+			),
+		},
+		{
+			name: 'Well-known cities are inside their own state and no other',
+			passed: BORDER_ANCHORS.every((anchor) => {
+				const owners = rows
+					.filter((row) => inState(row, [anchor.lon, anchor.lat]))
+					.map((row) => row.state);
+
+				return owners.length === 1 && owners[0] === anchor.state;
+			}),
 		},
 	];
 }

@@ -16,6 +16,7 @@ Public numbers from public sources, checked every day and published only after a
 | Hotel and meal rates | GSA per diem | Yearly |
 | Road safety by state | NHTSA and FHWA | Yearly |
 | Winter passes on major highways | A hand-kept table, drafted from USGS data (estimates) | Reviewed yearly |
+| State outlines (Lower 48 and DC) | Census cartographic boundary file, public domain; made once | Borders don't move |
 | Airports | FAA commercial-service list | Yearly |
 | Places and ZIP codes | Census | Yearly |
 | Rental rates by region | A hand-kept table (estimates) | A few times a year |

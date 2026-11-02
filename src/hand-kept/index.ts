@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { BorderRow } from '../lib/borders.ts';
 import type { Build, Job } from '../lib/job.ts';
 import {
+	checkBorders,
 	checkParking,
 	checkPasses,
 	checkRental,
@@ -18,6 +20,7 @@ export const FILES = {
 	parking: 'datasets/airport-parking.json',
 	rental: 'datasets/rental-rates.json',
 	passes: 'datasets/winter-passes.json',
+	borders: 'datasets/state-borders.json',
 } as const;
 
 async function load<T>(path: string, directory: string): Promise<T[] | null> {
@@ -38,6 +41,7 @@ export async function inspect(
 	const parking = await load<ParkingRow>(FILES.parking, directory);
 	const rental = await load<RentalRow>(FILES.rental, directory);
 	const passes = await load<PassRow>(FILES.passes, directory);
+	const borders = await load<BorderRow>(FILES.borders, directory);
 	const problems: string[] = [];
 	const due: string[] = [];
 
@@ -71,10 +75,19 @@ export async function inspect(
 		due.push(...staleRows(passes, (row: PassRow) => row.name, today));
 	}
 
+	// The outlines never come up for review: borders don't move, so there are no review dates.
+	if (borders === null) {
+		problems.push(`${FILES.borders} is missing.`);
+	} else {
+		for (const check of checkBorders(borders).filter((result) => !result.passed)) {
+			problems.push(`${FILES.borders}: ${check.name}`);
+		}
+	}
+
 	return {
 		problems,
 		due,
-		counts: `${parking?.length ?? 0} airports, ${rental?.length ?? 0} rental regions, ${passes?.length ?? 0} passes`,
+		counts: `${parking?.length ?? 0} airports, ${rental?.length ?? 0} rental regions, ${passes?.length ?? 0} passes, ${borders?.length ?? 0} state outlines`,
 	};
 }
 
@@ -100,7 +113,7 @@ const job: Job = {
 
 	async build(): Promise<Build> {
 		throw new Error(
-			`The hand-kept tables are edited by hand, in a pull request: ${FILES.parking}, ${FILES.rental}, and ${FILES.passes}. Run "npm run job -- hand-kept --check" to validate them.`,
+			`The hand-kept tables are edited by hand, in a pull request: ${FILES.parking}, ${FILES.rental}, and ${FILES.passes}. ${FILES.borders} is made once by "node src/state-borders.ts". Run "npm run job -- hand-kept --check" to validate them.`,
 		);
 	},
 };

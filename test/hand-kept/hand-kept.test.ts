@@ -14,6 +14,7 @@ import {
 } from '../../src/hand-kept/checks.ts';
 import job, { FILES, inspect } from '../../src/hand-kept/index.ts';
 import { formatRows } from '../../src/lib/write.ts';
+import { madeUpStates } from '../state-borders/shapes.ts';
 
 const parking = (code: string, over: Partial<ParkingRow> = {}): ParkingRow => ({
 	code,
@@ -234,12 +235,13 @@ describe('inspect and the job', () => {
 			[FILES.parking]: [parking('ATL', { reviewed: '2024-01-01' }), parking('BOS')],
 			[FILES.rental]: rentals,
 			[FILES.passes]: [pass('Vail Pass')],
+			[FILES.borders]: madeUpStates(),
 		});
 
 		expect(await inspect('2026-10-28', directory)).toEqual({
 			problems: [],
 			due: ['ATL'],
-			counts: '2 airports, 8 rental regions, 1 passes',
+			counts: '2 airports, 8 rental regions, 1 passes, 49 state outlines',
 		});
 	});
 
@@ -251,6 +253,21 @@ describe('inspect and the job', () => {
 			expect.stringContaining('airport-parking.json: Every daily rate is plausible'),
 			`${FILES.rental} is missing.`,
 			`${FILES.passes} is missing.`,
+			`${FILES.borders} is missing.`,
+		]);
+	});
+
+	it('names the checks the state outlines fail', async () => {
+		const directory = await folder({
+			[FILES.parking]: [parking('ATL')],
+			[FILES.rental]: rentals,
+			[FILES.passes]: [pass('Vail Pass')],
+			[FILES.borders]: madeUpStates().slice(1),
+		});
+		const { problems } = await inspect('2026-10-28', directory);
+
+		expect(problems).toEqual([
+			expect.stringContaining('state-borders.json: There is exactly one row for each'),
 		]);
 	});
 

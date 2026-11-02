@@ -48,3 +48,13 @@ export async function zipMembers(zipPath: string): Promise<string[]> {
 
 	return stdout.split('\n').filter((name) => name !== '' && !name.endsWith('/'));
 }
+
+/** One file inside a zip as raw bytes, for binary formats such as a shapefile. */
+export async function readZippedBytes(zipPath: string, member: string): Promise<Buffer> {
+	const { stdout } = await promisify(execFile)('unzip', ['-p', zipPath, member], {
+		encoding: 'buffer',
+		maxBuffer: 256 * 1024 * 1024,
+	});
+
+	return stdout;
+}
