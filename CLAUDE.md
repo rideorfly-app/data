@@ -2,7 +2,7 @@
 
 The public data pipeline for Ride or Fly. Each dataset has its own job, which checks a public source (DOT, EIA, GSA, NHTSA and FHWA, the FAA and OurAirports, Census) for new data and makes its file. (USGS data drafts the hand-kept winter passes table, and Census's boundary file makes the state outlines once; those files have a checker, not a job.) A daily workflow runs every job and opens a pull request for each update. The owner merges updates and cuts releases by hand, and the private `app` repo loads each release into D1. The full design is the "Batch data jobs" section of `../plan/MVP Plan.md`, which is the source of truth. Check it before building or changing a job, and point out anything that conflicts with it.
 
-This repo installs `@rideorfly/engine` at a pinned version, for its row formats and, for the accuracy report, its math. Until the engine is on npm, it installs from a pinned commit on GitHub, which works because the engine builds itself on install. Move the pin up with each engine change `data` needs. It depends on the engine, never the reverse.
+This repo installs `@rideorfly/engine` at a pinned version, for its row formats and, for the accuracy report, its math. Until the engine is on npm, it installs from a pinned commit on GitHub, which works because the engine builds itself on install. Move the pin up with each engine change `data` needs. It depends on the engine, never the reverse. The private `app` repo pins its own commit of the engine (`3335285` while `data` is at `020adef`), so move the two together when the engine changes in a way either one uses.
 
 ## About the owner
 
@@ -94,6 +94,7 @@ Downloads are cached in `.cache/` (ignored by Git). Node runs the TypeScript dir
 
 - Initial work happens on the `init` branch, with a pull request into `master`. `init` never commits datasets: `datasets/` is in the local exclude list (`.git/info/exclude`), so files made while testing stay untracked.
 - The backfill (January 2021 to the newest month) runs locally. Before it, `datasets/` comes off the exclude list, and the owner turns `master`'s pull-request rule off just long enough to push it straight to `master`, then back on. Signed commits, no force pushes, and no deletion stay on throughout.
+- Before the first real release, commit the four local files too: `datasets/airport-parking.json`, `datasets/rental-rates.json`, `datasets/winter-passes.json`, and `datasets/state-borders.json`. They're kept local on `init` (the owner's decision), so a release cut before then lacks them. The app's loader counts a missing dataset as a failure and won't move its data version, and the app needs `state-borders.json` to split a route's miles by state.
 - After the backfill, tighten the sanity ranges in `src/flight-history/checks.ts`. They are deliberately loose (set from three months). Narrow them to the spread of all the months, with a margin, so a broken file still fails.
 
 ## How the flight-history job was checked
