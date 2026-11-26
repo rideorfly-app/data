@@ -1,0 +1,52 @@
+name: Daily
+
+# Once a day, asks every dataset's source whether there is anything new. Each
+# dataset shows as its own line in the run with its own result, so one failing
+# doesn't stop the others. GitHub emails the owner when a run fails.
+
+on:
+  schedule:
+    - cron: '17 9 * * *'
+  workflow_dispatch:
+
+# Only one daily run at a time.
+concurrency:
+  group: pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    outputs:
+      jobs: ${{ steps.list.outputs.jobs }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: master
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      # Every folder in src/ other than lib/ is a dataset's job.
+      - id: list
+        run: echo "jobs=$(node src/cli.ts --list)" >> "$GITHUB_OUTPUT"
+
+  run:
+    needs: list
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ fromJson(needs.list.outputs.jobs) }}
+    uses: ./.github/workflows/job.yml
+    with:
+      job: ${{ matrix.job }}
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write

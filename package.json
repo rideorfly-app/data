@@ -1,0 +1,29 @@
+{
+	"name": "rideorfly-data",
+	"private": true,
+	"version": "0.0.0",
+	"description": "The data pipeline behind Ride or Fly: public numbers from public sources.",
+	"license": "Apache-2.0",
+	"author": "Caleb Stauffer",
+	"type": "module",
+	"scripts": {
+		"check": "biome check .",
+		"format": "biome check --write .",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"coverage": "vitest run --coverage",
+		"verify": "npm run check && npm run typecheck && npm test",
+		"job": "node src/cli.ts"
+	},
+	"dependencies": {
+		"@rideorfly/engine": "github:rideorfly-app/engine#020adef5351edb33e361503c4ef07d65edb1a3e8"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.5.15",
+		"@types/node": "24.19.2",
+		"@vitest/coverage-v8": "5.0.4",
+		"typescript": "7.0.2",
+		"vitest": "5.0.4"
+	}
+}

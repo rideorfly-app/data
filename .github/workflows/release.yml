@@ -1,0 +1,81 @@
+name: Release data
+
+# The "Release data" button. Builds the manifest from everything on master,
+# creates a release named for today's date with the manifest attached, and
+# publishes it. Nothing here runs on its own: the owner decides when.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: master
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Don't release anything the tests or the hand-kept tables' checks don't pass.
+      - run: npm run verify
+      - run: npm run job -- hand-kept --check
+
+      # The date, or the date with .2, .3 for more releases that day.
+      - name: Name the release
+        id: name
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          name="$(date -u +%F)"
+          n=1
+          while gh release view "$name" >/dev/null 2>&1; do
+            n=$((n + 1))
+            name="$(date -u +%F).$n"
+          done
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Build the manifest
+        env:
+          RELEASE: ${{ steps.name.outputs.name }}
+        run: node src/manifest.ts "$RELEASE" "$RUNNER_TEMP/manifest.json"
+
+      # Draft, attach the manifest, then publish: a published release is locked
+      # (immutable releases), so everything must be attached before it goes out.
+      - name: Create and publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE: ${{ steps.name.outputs.name }}
+        run: |
+          gh release create "$RELEASE" --draft --target "$GITHUB_SHA" --title "$RELEASE" \
+            --notes "Data release $RELEASE: every file on master at this commit. The manifest lists them with their checksums."
+          gh release upload "$RELEASE" "$RUNNER_TEMP/manifest.json"
+          gh release edit "$RELEASE" --draft=false
+          echo "Released $RELEASE" >> "$GITHUB_STEP_SUMMARY"
+
+      # Tell the organization's Discussions about a new accuracy report. The
+      # built-in token can't start a workflow in another repo, so this uses
+      # ANNOUNCE_TOKEN, a token that can start workflows in `.github` and do
+      # nothing else. It does nothing when this release has no new report.
+      - name: Announce a new accuracy report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ANNOUNCE_TOKEN: ${{ secrets.ANNOUNCE_TOKEN }}
+          ANNOUNCE_REPO: ${{ vars.ANNOUNCE_REPO }}
+          RELEASE: ${{ steps.name.outputs.name }}
+        run: |
+          previous="$(gh release list --exclude-drafts --limit 5 --json tagName --jq '.[].tagName' | grep -vx "$RELEASE" | head -n 1 || true)"
+          before="-"
+          if [[ -n "$previous" ]]; then
+            gh release download "$previous" --pattern manifest.json --output "$RUNNER_TEMP/previous.json"
+            before="$RUNNER_TEMP/previous.json"
+          fi
+          node src/announce.ts "$RUNNER_TEMP/manifest.json" "$before" "$RELEASE" | tee -a "$GITHUB_STEP_SUMMARY"
